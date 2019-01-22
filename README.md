@@ -7,7 +7,7 @@ This is a repository of projects I worked on in the field of Data Science. Click
 ## [Black Friday: EDA, Spending Prediction and Recommendation System](https://kellyraas.github.io/Projects/Black_Friday/Black_Friday.html)
 *January 2019* </br>
 *In collaboration with [Hendrik Mischo](https://github.com/hendrik-mischo)*
-- Black Friday Sales dataset. (Source: [Kaggle](https://www.kaggle.com/mehdidag/black-friday/home))
+- Data: 550k+ Observations about Black Friday Sales (Source: [Kaggle](https://www.kaggle.com/mehdidag/black-friday/home))
 - Explorative Data Analysis
 - Test for Pareto Principle (80/20 Rule)
 - Predict customer spending using Regression Model and Random Forest
@@ -17,8 +17,9 @@ This is a repository of projects I worked on in the field of Data Science. Click
 
 ## [Outcome Class Prediction for Austin Shelter Dogs](https://kellyraas.github.io/Projects/Austin_Animal_Shelter/Austin_Animal_Shelter.html)
 *January 2019*
-- Austin Animal Center Shelter Intakes and Outcomes dataset. (Source: [Kaggle](https://www.kaggle.com/aaronschlegel/austin-animal-center-shelter-intakes-and-outcomes#aac_outcomes.csv))
+- Data: 79k+ Observations on animals entering the Austin Animal Center. (Source: [Kaggle](https://www.kaggle.com/aaronschlegel/austin-animal-center-shelter-intakes-and-outcomes#aac_outcomes.csv))
 - Data wrangling
+- Implementing H2O.ai's machine learning platform
 - Class prediction using Random Forest Classification and Gradient Boosting Model
 - Parameter tuning with grid search </br>
 - **Keywords**(R, H2O, Cassification, Random Forest, Gradient Boosting, Machine Learning)
