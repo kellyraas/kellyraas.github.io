@@ -1,0 +1,430 @@
+---
+title: "Outcome Class Prediction for Austin Shelter Dogs"
+author: "Kelly Raas"
+output:
+  html_document:
+    code_folding: show
+    toc: true
+    toc_float: true
+    number_sections: true
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_format = "all") })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=6, fig.height=4, fig.align="center", echo=TRUE, warning=FALSE, message=FALSE,autodep = TRUE,cache=TRUE,options(scipen = 999), comment = "", fig.path = "files/")
+```
+
+# Introduction
+
+**Dataset: Austin Animal Center Shelter Intakes and Outcomes**
+
+Link: https://www.kaggle.com/aaronschlegel/austin-animal-center-shelter-intakes-and-outcomes
+
+The Austin Animal Center is the largest no-kill animal shelter in the United States that provides care and shelter to over 18,000 animals each year. The data contains intakes and outcomes of animals entering the Austin Animal Center from October 2013 to beginning of 2018. In total it contains information on around 70.000 animals (including Dogs, Cats, Birds and other small animals).
+
+**Procedure:** </br> \
+1. Data Cleaning </br> \
+2. Model Building and Tuning </br> \
+3. Evaluation
+
+The aim of this project is to see if it is possible predict the outcomes for dogs entering the shelter system. In total there are nine possible outcome types: Adoption, Died, Disposal, Euthanasia, Missing, Return to Owner, Relocate, Rto-Adopt and Transfer. As the shelter has a no-kill goal I grouped the outcomes in whether it is a "Live-Outcome" (which include those animals adopted, returned to their owners or transferred to rescue groups and other community partners) or "Other" outcome, which includes the not live outcomes (Died, Euthanasia, Disposal) aswell as the rest of the not so positive outcomes (Missing, Relocate, Rto-Adopt). 
+
+```{r, include=FALSE}
+library(tidyverse)
+library(caret)
+library(lubridate)
+library(rpart)
+library(ggplot2)
+library(randomForest)
+library(xgboost)
+```
+
+# Data Cleaning
+
+I start with loading the data and filter only the dog observations.
+
+```{r}
+# Loding the dataset
+data = read.csv('aac_intakes_outcomes.csv')
+attach(data)
+
+# Filter only Dog data
+data <- data[which(data$animal_type =='Dog'),]
+```
+
+Next I have a look at the structure of my data. 
+
+```{r}
+glimpse(data)
+```
+
+In total there are 41 variables, not all of them will be relevant for the model.
+
+I will also nead to modify some variables in order to make them better usable for the model.
+
+**Included Features**
+
+Intuitivly I chose the variables that provide information about the dog itself (age, breed, sex, color). We will see if certain features of the dog have an influence on a particular outcome.
+
+For age I use the variable age_upon_intake_.days. which gives us the age of the dog counted in days at the moment it arrived at the animal shelter. It is natural to think that puppies might have a higher chance to get adopted than adult dogs.
+
+The Breed variable has way too many levels (2155 to be exact). I’m going to deal with this by grouping breeds into Popular (10 most popular breeds), Unpopular (11 least popular breeds) and Dangerous (6 breeds listed as dangerous) as reported by the American Kennel Club. The rest of the breed will go into an 'Other' group. Most of the dogs that end up in the shelter seem to be mixed breeds, in this case I consider only the primary breed.
+
+Color has 529 different levels, so I decided to simplify color too by just keeping the main color.
+
+The variable sex_upon_outcome has four levels: Intact Male, Intact Female, Neutered Male, Spayed Female. I will seperate this into two variables, one on sex and the other on whether the dog is intact or not. I think this might be a relevant information on its own as it is possible that dogs are much more likely to be adopted if they’ve been neutered or spayed.
+
+I also included three variables that are not intrinsic to the dog but which I believe might have a significant influence on the outcome, these are Intake type, Intake month and Time spend in shelter.
+
+In summary I will perform following modifications: </br> \
+• Group different breeds into `breed group`. </br> \
+• Create two seperate variables for sex and intactness. </br> \
+• Simplify `color` variable. </br> \
+• Group `outcome` types into 'Live-Outcome' and 'Other'. </br> \
+
+
+```{r}
+# Group breed types
+# Split Mixed Breeds and keep only Primary Breed
+data <- data %>% separate(breed, into = c("Primary_Breed", "Other_Breed"), sep = "/")
+data$Primary_Breed <- gsub(" Mix", "", data$Primary_Breed)
+data <- select(data, -Other_Breed)
+data$Primary_Breed <- as.character(data$Primary_Breed)
+data$breed_group <- NA
+
+# Create Breed Groups
+breed_popular = as_factor(c('Labrador Retriever', 'German Shepherd', 'Golden Retriever', 'French Bulldog',  'Bulldog', 'Beagle', 'Poodle', 'Rottweiler', 'Yorkshire Terrier', 'German Shorthaired Pointe'))
+
+breed_unpopular = as_factor(c('Finnish Spitz', 'Glen of Imaal Terriers', 'Canaan Dogs', 'Cesky Terriers', 'Cirnechi dell’Etna', 'Bergamasco', 'Sloughis', 'Harriers', 'English Foxhounds', 'Norwegian Lundehunds', 'American Foxhound'))
+
+breed_dangerous = as_factor(c('Alaskan Malamute', 'Chow Chow', 'Doberman Pinscher', 'Great Dane', 'Husky', 'Pit Bull'))
+
+# Assign Primary Breeds to Breed Group
+popular <- which(data$Primary_Breed %in% breed_popular)
+data$breed_group[popular] <- "Popular"
+
+unpopular <- which(data$Primary_Breed %in% breed_unpopular)
+data$breed_group[unpopular] <- "Unpopular"
+
+dangerous <- which(data$Primary_Breed %in% breed_dangerous)
+data$breed_group[dangerous] <- "Dangerous"
+
+data$breed_group <- ifelse(is.na(data$breed_group),'Other', data$breed_group)
+
+data$breed_group = factor(data$breed_group)
+data$Primary_Breed = factor(data$Primary_Breed)
+
+# Seperate Sex and Intactness
+# Delete Unknown Variables
+data <- data[!grepl("Unknown", data$sex_upon_outcome),]
+# Create Sex and Intact Variable
+data <- mutate(data,
+  intact = ifelse(grepl('Intact', data$sex_upon_outcome), TRUE, FALSE),
+  sex = ifelse(grepl('Male', data$sex_upon_outcome), 'Male', 'Female'))
+
+# Simplify Color
+# Use strsplit to grab the first color
+data$simple_color <- sapply(as.character(data$color), function(x) strsplit(x, split = '/| ')[[1]][1])
+
+data$simple_color = factor(data$simple_color)
+
+# Group outcome types into Live-Outcome or Other
+data <- mutate(data,
+               outcome = ifelse(grepl('Adoption', data$outcome_type), 'Live-Outcome', 
+                                ifelse(grepl('Return to Owner', data$outcome_type), 'Live-Outcome',
+                                       ifelse(grepl('Transfer', data$outcome_type),'Live-Outcome', 
+                                              'Other'))))
+
+# Factorizing variables
+data$sex = factor(data$sex)
+data$intact = factor(data$intact)
+data$outcome = factor(data$outcome)
+data$intake_month = factor(data$intake_month)
+```
+
+Now, I have all the variables prepared. Lastly, I filter the dataset to contain only the relevant variables to fit my models.
+
+```{r}
+data.mod <- dplyr::select(data, age_upon_intake_.days., 
+                          breed_group, 
+                          intact, 
+                          sex, 
+                          simple_color, 
+                          time_in_shelter_days, 
+                          intake_type, 
+                          intake_month, 
+                          outcome)
+```
+
+
+# Model Building and Tuning
+
+## Setting up H2O environment
+
+Given the large sample and the needed processing power I opted for using the H2O environment. It is quite powerful and offers more options for the different models.
+
+First I set up the H2o working environment and split my data into training, validadtion and test sets.
+
+```{r}
+# Setting h2o environment
+library(h2o)
+h2o.init()
+h2o.removeAll()
+h2o.no_progress()
+
+data.h2o = as.h2o(data.mod)
+
+# Split data into training, validation and test sets with ratios 0.6/0.2/0.2. 
+splits = h2o.splitFrame(data = data.h2o, ratios = c(0.6,0.2), seed = 2019)
+data.train = splits[[1]]
+data.valid = splits[[2]]
+data.test = splits[[3]]
+
+# Define dependent and independent variables
+Y = "outcome"
+X = setdiff(names(data.mod), "outcome")
+```
+
+Now I have everything prepared to fit my first model.
+
+
+## Random Forest
+
+I start with the default Random Forest algorithm as a baseline.
+
+```{r}
+# Random Forest
+rf = h2o.randomForest(x=X, y=Y, 
+                      training_frame = data.train,
+                      validation_frame = data.valid,
+                      ntrees = 500, 
+                      seed = 2019)
+
+h2o.confusionMatrix(rf, valid = T)
+rf.auc <- h2o.auc(rf, valid = T)
+rf.auc
+```
+
+The outcome is not too bad, the AUC is `r round(rf.auc,4)`. The total classification error is only `r round(h2o.confusionMatrix(rf, valid = T)[3,3],4)`. However, the error rate for the 'Other' class is at `r round(h2o.confusionMatrix(rf, valid = T)[2,3],4)` which is very high. Taking a look at the outcome variable, we can see that the we have a serious class imbalance.
+
+```{r}
+table(as_data_frame(data.train)$outcome) / nrow(as_data_frame(data.train))
+```
+
+It is important to balance the data when modeling in order to avoid a false sense of accuracy. The argument balance_classes will do a combination of under- and oversampling in order to balance the outcome data. 
+
+```{r}
+# Random Forest with balenced data 
+rf2 = h2o.randomForest(x=X, y=Y, 
+                       training_frame = data.train, 
+                       validation_frame = data.valid,
+                       ntrees = 500,
+                       seed = 2019,
+                       balance_classes = TRUE)
+
+h2o.confusionMatrix(rf2, valid = T)
+h2o.auc(rf2, valid = T)
+```
+As expected the outcome is now slightly worse, but also not too bad. The AUC is `r round(h2o.auc(rf2, valid = T),4)`. Unfortunately the classification error for the 'Other' has even increased (`r round(h2o.confusionMatrix(rf2, valid = T)[2,3],4)`). This might also be due to the fact that the 'Other' class includes a variaty of different outcomes that are not related to each other. As the Austin Animal Shelter has a no-kill goal I belive it is more important to have a model able to correctly classify a dog as a 'Live-Outcome', for which the model would do quite well. Still, we will see if other models will yield better outcomes. 
+
+Next I check if the settings for the forest can be optimised. We want to find the optimal number of trees and the optimal number of variables (mtries). As with an imbalanced dataset the accuracy metric is not the most useful, therefore I´ll focus on the AUC metric.
+
+```{r}
+# Plot training error according to number of trees.
+plot(rf2, metric = 'AUC')
+
+# Plot OOB error and Test error according to number of variables.
+oobe.values = double(8)
+test.err=double(8)
+
+for(i in 1:8) {
+  temp.model <- h2o.randomForest(x=X, y=Y, 
+                                 training_frame = data.train, 
+                                 ntrees = 100, 
+                                 mtries = i, 
+                                 seed = 2019, 
+                                 balance_classes = TRUE)
+  oobe.values[i] <- h2o.auc(temp.model)
+  perf <- h2o.performance(temp.model, newdata = data.valid)
+  test.err[i] <- h2o.auc(perf)
+}
+
+matplot(1:i,cbind(test.err,oobe.values),pch=19,col=c("red","blue"),type="b",ylab="AUC")
+legend("topright",legend=c("Test","OOB"),pch=19,col=c("red","blue"))
+```
+
+According to the graph a forest of 100 trees should be enough. The lowest value for the test error is when mtry=1. So the optimal setting for my Random Forest model is ntrees = 100 and mtries = 1. Lets have a look at the final outcome.
+
+```{r}
+rf.final = h2o.randomForest(x=X, y=Y, 
+                            training_frame = data.train, 
+                            validation_frame = data.valid,
+                            ntrees = 100, 
+                            mtries = 1, 
+                            seed = 2019, 
+                            balance_classes = TRUE)
+
+h2o.confusionMatrix(rf.final, valid = T)
+h2o.auc(rf.final, valid = T)
+```
+
+With optimizing the Random Forest we get slightly improved AUC of `r round(h2o.auc(rf.final, valid = T),4)`.
+
+
+## Gradient Boosting
+
+Now lets see how a boosting model performs. Again I start with a default boosting algorithm.
+
+```{r}
+# Default Gradient Boosting Model
+
+gbm1 = h2o.gbm(x = X, y = Y, 
+              training_frame = data.train,
+              validation_frame = data.valid,
+              balance_classes = T,
+              seed = 2019)
+
+h2o.confusionMatrix(gbm1, valid = T)
+h2o.auc(gbm1, valid = T)
+```
+
+With an AUC of `r round(h2o.auc(gbm1, valid = T),4)` and an error of  `r round(h2o.confusionMatrix(gbm1, valid = T)[3,3],4)`  the default boosting model already performs better than our random forest model.
+
+Next I try tuning some random parameters.
+
+```{r}
+
+gbm2 = h2o.gbm(x = X, y = Y, 
+              training_frame = data.train,
+              validation_frame = data.valid,
+              balance_classes = T,
+              # increase number of trees (from 50)
+              ntrees = 500,
+              # decrease the learning rate (from 0.1)
+              learn_rate = 0.01,
+              # early stopping to automatically tune the number of trees using the validation AUC.
+              stopping_rounds = 5, stopping_tolerance = 1e-4, stopping_metric = 'AUC', 
+              score_tree_interval = 10,
+              # sample 80% of rows per tree
+              sample_rate = 0.8,                                                       
+              #  sample 80% of columns per split
+              col_sample_rate = 0.8,  
+              seed = 2019)
+
+h2o.confusionMatrix(gbm2, valid = T)
+h2o.auc(gbm2, valid = T)
+```
+
+With these parameters the model does not perform significantly better. The AUC is `r round(h2o.auc(gbm2, valid = T),4)`. Next, I'll do real hyper-parameter optimization to see if we can beat the best AUC so far.
+
+```{r}
+# GBM hyperparamters
+gbm_params2 <- list(learn_rate = seq(0.01, 0.1, 0.01),
+                    max_depth = seq(2, 10, 1),
+                    sample_rate = seq(0.5, 1.0, 0.1),
+                    col_sample_rate = seq(0.1, 1.0, 0.1))
+search_criteria2 <- list(strategy = "RandomDiscrete", 
+                         max_models = 100)
+
+# Train and validate a grid of GBMs
+gbm_grid2 <- h2o.grid("gbm", x = X, y = Y,
+                      grid_id = "gbm_grid2",
+                      training_frame = data.train,
+                      validation_frame = data.valid,
+                      balance_classes = T,
+                      ntrees = 500,
+                      seed = 2019,
+                      hyper_params = gbm_params2,
+                      search_criteria = search_criteria2,
+                      stopping_rounds = 5, stopping_tolerance = 1e-4, stopping_metric = "AUC"
+                      )
+
+gbm_gridperf2 <- h2o.getGrid(grid_id = "gbm_grid2", 
+                             sort_by = "AUC", 
+                             decreasing = T)
+
+best_gbm_model_id <- gbm_gridperf2@model_ids[[1]]
+best_gbm <- h2o.getModel(best_gbm_model_id)
+
+h2o.confusionMatrix(best_gbm, valid = T)
+h2o.auc(best_gbm, valid = T)
+```
+
+The resulting model has a better validation AUC (`r round(h2o.auc(best_gbm, valid = T),2)`) than our previous best model, so the random grid search was successful!
+
+
+# Evaluation
+
+Now that we built and tuned the models, we want to compare their results to decide which is the best.
+
+```{r}
+data.frame(rf2 = c(h2o.auc(rf2, valid = T), 
+                   h2o.confusionMatrix(rf2, valid = T)[3,3]),
+           rf.final = c(h2o.auc(rf.final, valid = T), 
+                        h2o.confusionMatrix(rf.final, valid = T)[3,3]),
+           gbm1 =  c(h2o.auc(gbm1, valid = T), 
+                     h2o.confusionMatrix(gbm1, valid = T)[3,3]),
+           gbm2 =  c(h2o.auc(gbm2, valid = T), 
+                     h2o.confusionMatrix(gbm2, valid = T)[3,3]),
+           best_gbm = c(h2o.auc(best_gbm, valid = T), 
+                     h2o.confusionMatrix(best_gbm, valid = T)[3,3]),
+           row.names = c('AUC','error')
+           )
+```
+
+The winner is our tuned GBM. Let's see how well our best model does on the held out test set:
+
+```{r}
+best_gbm_perf <- h2o.performance(model = best_gbm, 
+                                 newdata = data.test)
+
+h2o.confusionMatrix(best_gbm_perf)
+h2o.auc(best_gbm_perf)
+```
+
+It does as well on the test set as on the validation set, so it looks like our model generalizes well to the unseen test set.
+
+We can inspect the winning model's parameters:
+
+```{r}
+best_gbm@parameters
+```
+
+Now we can confirm that these parameters are generally sound, by building a GBM model on the whole dataset (instead of the 60%) and using internal 5-fold cross-validation.
+
+```{r}
+model <- do.call(h2o.gbm,
+        ## update parameters in place
+        {
+          p <- best_gbm@parameters
+          p$model_id = NULL          ## do not overwrite the original grid model
+          p$training_frame = data.h2o      ## use the full dataset
+          p$validation_frame = NULL  ## no validation frame
+          p$nfolds = 5               ## cross-validation
+          p
+        })
+
+model@model$cross_validation_metrics_summary[2,]
+```
+
+Looks good! With a mean AUC of `r model@model$cross_validation_metrics_summary[2,1]` and a standard deviation of only `r model@model$cross_validation_metrics_summary[2,2]` we can confirm that our best model is not over-fittet.
+
+Now that we have our best model we can have a look at which variables are actually the most relevant for the model.
+
+```{r}
+h2o.varimp_plot(best_gbm)
+```
+
+As expected age and intactness are among the top predictors. Intactness is an even more important predictor than age. On the other hand the sex itself has the least impact, surprisingly even less than color. It is also interesting that the time the dog spent in the shelter and the intake type seem to have more impact than the breed group and sex of the dog.
+
+
+# Summary
+
+In order to classify the possible 'Live-Outcome' or 'Other' outcome for dogs ending up at the Austin Animal Shelter I compared the performance of a Random Forest model against a Gradient Boosting model.
+
+After established a baseline with the default of each model, I tried to tune the remaining hyper-parameters in order to improve the models by maximising the AUC. We were able to get a final AUC on a holdout test set of `r h2o.auc(best_gbm_perf)`. Ultimately, I performed a simple cross-validation variance analysis to confirm that results were generaly sound.
+
+Overall, the model provides a good performance classifying 'Live-Outcomes'. Although, it has a high missclassification rate for 'Other' outcomes, in general only 0.03% of 'Live-Outcomes' will be false positives. This means that if a dog has been classified as a possible 'Live-Outcome', there is only a ~0.03% chance that this won´t be the case.
+
+
