@@ -9,9 +9,9 @@ This is a repository of projects I worked on in the field of Data Science. Click
 *In collaboration with [Hendrik Mischo](https://github.com/hendrik-mischo)*
 - Data: 550k+ Observations about Black Friday Sales (Source: [Kaggle](https://www.kaggle.com/mehdidag/black-friday/home))
 - Explorative Data Analysis
-- Test for Pareto Principle (80/20 Rule)
+- Testing for Pareto Principle (80/20 Rule)
 - Predict customer spending using Regression Model and Random Forest
-- Build a Recommendation System
+- Building a Recommendation System
 - **Keywords**(R, Tidyverse, ggplot, Linear Regression, Random Forest, Recommenderlab)
 
 
