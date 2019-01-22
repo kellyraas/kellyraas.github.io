@@ -5,7 +5,7 @@
 This is a repository of projects I worked on in the field of Data Science. Click on the headlines to see the full analysis report and code.
 
 ## [Black Friday: EDA, Spending Prediction and Recommendation System](https://kellyraas.github.io/Projects/Black_Friday/Black_Friday.html)
-*In collaboration with [Hendrik Mischo](https://github.com/hendrik-mischo)*
+*In collaboration with [Hendrik Mischo](https://github.com/hendrik-mischo)* </br>
 *January 2019*
 - Black Friday Sales dataset. (Source: [Kaggle](https://www.kaggle.com/mehdidag/black-friday/home))
 - Explorative Data Analysis
@@ -21,4 +21,4 @@ This is a repository of projects I worked on in the field of Data Science. Click
 - Data wrangling
 - Class prediction using Random Forest Classification and Gradient Boosting Model
 - Parameter tuning with grid search </br>
-- **Keywords**(R, H2O, Cassification, Random Forest, Gradient Boosting)
+- **Keywords**(R, H2O, Cassification, Random Forest, Gradient Boosting, Machine Learning)
