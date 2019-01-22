@@ -2,7 +2,7 @@
 
 # Data Science Portfolio
 
-This is a repository of Projects I worked on in the field of Data Science. Click on the headlines to see the full analysis report and code.
+This is a repository of projects I worked on in the field of Data Science. Click on the headlines to see the full analysis report and code.
 
 ## [Black Friday: EDA, Spending Prediction and Recommendation System](https://kellyraas.github.io/Projects/Black_Friday/Black_Friday.html)
 *In collaboration with [Hendrik Mischo](https://github.com/hendrik-mischo)* </br>
