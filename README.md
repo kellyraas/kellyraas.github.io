@@ -15,5 +15,5 @@ This is a repository of projects I worked on in the field of Data Science. Click
 - **Keywords**(R, H2O, Classification, Random Forest, Gradient Boosting, Machine Learning)
 
 ## [Monty Hall Paradox Simulation](kellyraas.github.io/Projects/Monty_Hall_Simulation/Monty_Hall_Simulation.html)
-*January 2019*
+*January 2019* </br>
 Recently I found myself in a heated discussion about the Monty Hall Paradox. In order to test Vos Savant's claims on the probabilities, I decided to run a quick simulation in R code.
