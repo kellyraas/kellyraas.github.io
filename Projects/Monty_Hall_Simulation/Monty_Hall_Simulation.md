@@ -10,7 +10,7 @@ However, [Marilyn vos Savant's](https://en.wikipedia.org/wiki/Marilyn_vos_Savant
 
 I could not really make up with this logic and was in doubt whether this was true. So I decided to quickly run a simulation.
 
-This is wat it looks like:
+This is what it looks like:
 
 ``` r
 n = 100000 # set how often to run the experiment
@@ -22,7 +22,7 @@ for (i in 1:n) {
   doors = c(1,2,3) # define the 3 doors
   car = sample(doors)[1] # set door with car prize at random
   choice = sample(doors,1) # choose one door at random
-  open.door = doors[which(doors != choice & doors != car)][1] # open one of the two remianing doors (can not be the one with car prize)
+  open.door = doors[which(doors != choice & doors != car)][1] # open one of the two remianing doors which is not the Car door
   
   switch = doors[which(doors != choice & doors != open.door)] # possible door to switch
   
@@ -35,25 +35,16 @@ for (i in 1:n) {
 # calculate respective ratios
 ratio.win.stay = round(count.choice/n*100,1)
 ratio.win.switch = round(count.switch/n*100,1)
-
-count.choice/n*100
 ```
-
-    ## [1] 33.318
-
-``` r
-count.switch/n*100
-```
-
-    ## [1] 66.682
 
 So, let's have a look at the results.
 
 ``` r
-cat("Winning ratio when staying with the initial door:", paste(ratio.win.stay), "%","\n","Winning ratio when switching door:", paste(ratio.win.switch), "%")
+cat("Winning ratio when staying with the initial door:", paste(ratio.win.stay), "%",
+    "\n","Winning ratio when switching door:", paste(ratio.win.switch), "%")
 ```
 
-    ## Winning ratio when staying with the initial door: 33.3 % 
-    ##  Winning ratio when switching door: 66.7 %
+    Winning ratio when staying with the initial door: 33.2 % 
+     Winning ratio when switching door: 66.8 %
 
 So, indeed Vos Savant's argument holds true, although it seems totally counterintuitive. Find out more about this Paradox [here](https://en.wikipedia.org/wiki/Monty_Hall_problem).

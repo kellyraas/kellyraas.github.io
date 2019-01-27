@@ -131,7 +131,7 @@ $(document).ready(function () {
 <p>You are a contestant on a gameshow. The host gives you the option of selecting one from three available doors. Behind one door is a new car, behind the other two are goats. You select one door at random. The host then reveals one of the remaining doors as a Goat Door. Now you have the choice to either stay with your initial choice or switch to the other remaining closed door. The question is: Do you get any advantage when swithcing your choice? Intuitivly, it seems logical that now you have a 50/50 chance that behind the door you chose is the car, and you wouldn’t gain anything by switching doors.</p>
 <p>However, <a href="https://en.wikipedia.org/wiki/Marilyn_vos_Savant">Marilyn vos Savant’s</a> claimed that under the standard assumptions, contestants who would switch the door had a 2/3 chance of winning the car, while contestants who would stick to their initial choice had only a 1/3 chance. Therefore, her response was that the contestant should switch to the other door.</p>
 <p>I could not really make up with this logic and was in doubt whether this was true. So I decided to quickly run a simulation.</p>
-<p>This is wat it looks like:</p>
+<p>This is what it looks like:</p>
 <pre class="r"><code>n = 100000 # set how often to run the experiment
 count.choice = 0 
 count.switch = 0
@@ -141,7 +141,7 @@ for (i in 1:n) {
   doors = c(1,2,3) # define the 3 doors
   car = sample(doors)[1] # set door with car prize at random
   choice = sample(doors,1) # choose one door at random
-  open.door = doors[which(doors != choice &amp; doors != car)][1] # open one of the two remianing doors (can not be the one with car prize)
+  open.door = doors[which(doors != choice &amp; doors != car)][1] # open one of the two remianing doors which is not the Car door
   
   switch = doors[which(doors != choice &amp; doors != open.door)] # possible door to switch
   
@@ -153,16 +153,12 @@ for (i in 1:n) {
 
 # calculate respective ratios
 ratio.win.stay = round(count.choice/n*100,1)
-ratio.win.switch = round(count.switch/n*100,1)
-
-count.choice/n*100</code></pre>
-<pre><code>## [1] 33.441</code></pre>
-<pre class="r"><code>count.switch/n*100</code></pre>
-<pre><code>## [1] 66.559</code></pre>
+ratio.win.switch = round(count.switch/n*100,1)</code></pre>
 <p>So, let’s have a look at the results.</p>
-<pre class="r"><code>cat(&quot;Winning ratio when staying with the initial door:&quot;, paste(ratio.win.stay), &quot;%&quot;,&quot;\n&quot;,&quot;Winning ratio when switching door:&quot;, paste(ratio.win.switch), &quot;%&quot;)</code></pre>
-<pre><code>## Winning ratio when staying with the initial door: 33.4 % 
-##  Winning ratio when switching door: 66.6 %</code></pre>
+<pre class="r"><code>cat(&quot;Winning ratio when staying with the initial door:&quot;, paste(ratio.win.stay), &quot;%&quot;,
+    &quot;\n&quot;,&quot;Winning ratio when switching door:&quot;, paste(ratio.win.switch), &quot;%&quot;)</code></pre>
+<pre><code>Winning ratio when staying with the initial door: 33.3 % 
+ Winning ratio when switching door: 66.7 %</code></pre>
 <p>So, indeed Vos Savant’s argument holds true, although it seems totally counterintuitive. Find out more about this Paradox <a href="https://en.wikipedia.org/wiki/Monty_Hall_problem">here</a>.</p>
 
 
