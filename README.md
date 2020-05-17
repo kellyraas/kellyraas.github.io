@@ -4,9 +4,22 @@
 
 This is a repository of projects and assignments I worked on during my Data Science Master's Degree in 2019. Click on the headlines to see the full report and code.
 
+## [Data_Mining](https://kellyraas.github.io/Projects/Data_Mining/Data_Mining.html)
+*June 2019* </br>
+- Part 1: Association Rule Mining
+  - Finding Frequent Itemsets
+  - Apriori Algorithm
+- Part 2: Anomaly Detection
+  - Mahalanobi distance (distance-based)
+  - LOF Algorithm (density-based)
+  - DBSCAN (clusetering-based)
+  - Expectation Maximisation (clistering-based)
+- **Keywords**(R, Data Mining, Apriori, Anomaly Detection)
+
+
 ## [California Housing Prices](https://kellyraas.github.io/Projects/California_Housing_Prices/California_Housing_Prices.html)
 *June 2019* </br>
-- Data: Housing Data of California 1990 Census
+- Data: Housing Data of California 1990 Census (Source: [Kaggle](https://www.kaggle.com/camnugent/california-housing-prices))
 - Objective: Predicting the average housing prices
 - Regression with Neural Networks
 - **Keywords**(R, Regression, Neural Networks, Cross-Validation)

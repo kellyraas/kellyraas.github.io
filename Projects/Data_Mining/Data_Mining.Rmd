@@ -1,0 +1,403 @@
+---
+title: "Práctica Final Reglas de Asociación y Detección de Anomalías"
+subtitle: "Nuevas Tendencias en Minería de Datos"
+author: "Kelly Raas"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    #code_folding: hid
+    toc: true
+    toc_float: false
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 6, fig.align = "center", echo = TRUE, warning = FALSE, message = FALSE, autodep = TRUE, cache = TRUE, options(scipen = 999), comment = "", fig.path = "files/")
+```
+
+
+```{r,  include=FALSE}
+library(arules)     # Association rules
+library(arulesViz)  # Rule visualization
+library(tidyverse)  # Data wrangling
+library(data.table) # Data tables
+library(MVN)        # Multivariate outlier detection
+library(dbscan)     # DBSCAN
+library(mclust)     # Expectation Maximization
+```
+
+
+# Part 1: Association Rule Mining
+
+## Introduction
+
+Association rules mining, often also referred to as 'Market Basket Analysis', is a data mining method used to find useful insights to a particular domain. It is a rule-based machine learning method designed to discover frequent co-occurring associations among a collection of items or transactions.
+
+An association rule has two parts, an antecedent and a consequent (item that is found in combination with the antecedent).
+
+The strength of an association rule can be measured in terms of its *support* and *confidence*. *Support* tells us how frequently the items or the combination antecedent and consequent appear in the database. This is of interest due to the fact that if a rule is measured to be very low in support, it is likely to be uninteresting from a business perspective. *Confidence*, on the other hand indicates the probability that a transaction containing the antecedent also contains the consequent. It essentially measures the reliability of the inference made by a rule.
+
+Another interesting evaluation metric is *Lift*, which is an correlation indicator that indicates how often a rule happenes compared to the estimated chance for it to happen. If the lift value is equal to 1 it means that the items are intependent of each other whereas if lift >1 it tells us the degree to which the items are dependent of each other.
+
+
+## Data
+
+For this practice we are using the Extended Bakery Dataset containing 75,000 receipts from a bakery chain that has a menu of about 40 pastry items and 10 coffee drinks. The database stores information about the food/drinks offered for sale, locations, employees at each location and individual sales (receipts) at those locations. 
+
+The aim is to to find frequent itemsets and interesting association rules.
+
+Let's start by loading the data files.
+
+1. Description File:
+```{r}
+items = read.csv("/Users/kelly/Documents/MADM/CURSOS/N. Te. Mi. Da./Part 3/Practica Final/BAKERY DATASET-20190525/bakerygoods.txt", sep = "\t", stringsAsFactors = FALSE)
+head(items)
+```
+
+2. Transaction data
+```{r}
+# Get max number of items in one transaction
+max_items = max(count.fields("/Users/kelly/Documents/MADM/CURSOS/N. Te. Mi. Da./Part 3/Practica Final/BAKERY DATASET-20190525/75000/75000-out1.csv", sep = ","))
+# Read data
+data = read.table("/Users/kelly/Documents/MADM/CURSOS/N. Te. Mi. Da./Part 3/Practica Final/BAKERY DATASET-20190525/75000/75000-out1.csv", sep = ",", header = FALSE, fill = TRUE,
+                     col.names = c("id", paste0("item",1:(max_items-1))))
+head(data)
+```
+
+We can see that each row represents a transaction. The first column states the receipt-ID and the remaining columns, the item-IDs that were sold in that receipt. We can remove the ID-column since it does not hold any useful information. Furthermore, we want to replace the item ID's with the corresponding item names found in the description table. To do so we need to combines the `name` and `type` label to get the different unique items.
+
+```{r}
+# Remove ID column
+data = data[,(names(data) != "id")]
+
+# Match item-IDs with item names
+items$item = paste0(items$name, items$type)
+data = data.frame(lapply(data, function(x) x = items$item[match(x, items$id)]))
+head(data)
+```
+
+## Finding Frequent Itemsets
+
+Apriori requires a transaction object. In order to create it, we create a new csv file with our modified data read the new CSV-file back as an transaction file.
+
+```{r}
+write.table(data, "receipts_new.csv", sep = ",", col.names = FALSE, row.names = FALSE, na = "")
+t.data = read.transactions("receipts_new.csv", sep = ",")
+summary(t.data)
+```
+
+The data comprises 75000 transactions and 50 different items. We can say that the data set is rather sparse with a density of only around 7%. The average transaction contains 3-4 items.
+
+Next we will have a look at the top 10 most frequently purchased items and their relative frequency.
+
+```{r}
+itemFrequencyPlot(t.data, topN = 10, type="relative", main="Top 10 Items")
+```
+
+The most popular item is a Coffee Eclaire followed by hot coffee. However, we can see that it's relative frequency is only just above 0.10, this means that in general the items have a low support value.
+
+So far for individual items. However, we are interested in finding frequent itemsets (combination of items in the same transaction). We can use the the Eclat algorithm to mine frequent itemsets, we will set the support value to 0.02 and maxlen (maximum number of items in a itemset) to 3, we also need to det the minlen to 2 in order to get itemsets of more than one item.
+
+```{r}
+freq_itemsets = eclat(t.data, parameter = list(support = 0.02, minlen = 2, maxlen = 3))
+inspect(freq_itemsets)
+```
+
+
+## Mining Strong Association Rules
+
+Now we want to find strong association rules using the Apriori Algorithm. Because we want to find strong association rules we will set the minimum threshold for the confidence indicator at 80%, meaning that whenever an item X item was purchased, item Y was also purchased 80% of the time. We will set the min. support value to 0.01 as we have seen that the relative purchase frequency of the items is quite low.
+
+```{r}
+rules = apriori(t.data, parameter = list(supp = 0.01, conf = 0.8))
+summary(rules)
+```
+
+In total 85 rules with a confidence value of 0.8 or higher were generated. 
+
+### Redundant Rules
+
+Rules having the same support and confidence as more general rules are considered redundant association rules. Which means that rule is more general than another more specific rule if the specific rule can be generated by adding additional items to either the antecedent or consequent of the general rule. 
+
+Let's see if we have any redundant rules.
+
+```{r}
+sum(is.redundant(rules, measure = "lift"))
+```
+
+Seems like there are no redundant rules.
+
+### Rules by Confidence
+
+Let's have a look at the first 10 rules with highest confidence.
+
+```{r}
+rules_by_conf = sort(rules, by="confidence", decreasing=TRUE)
+inspect(rules_by_conf[1:15,]) 
+```
+
+We can see that all 10 rules have a confidence of 1 or very close to 1 which means that whenever the antecedent items was purchased, the consequent item was also purchased 100% or close to 100% of the cases. The rules have also very high lift values. This means that the correlation between all the items in their respective rules is also very high.
+
+What is also interesting is that all 10 rules are a combination of the same items, whch are: Lemon Lemonade, Raspberry Lemonade, Lemon Cookie, Raspberry Cookie and Green Tea. Where it seems like the antecedents and consequent are switching places (a -> b and b -> a) in order to form new rules with only minor variations in support, confidence and lift. 
+
+So this is definetly an important itemset to consider for the Bakery owner.
+
+Let's visualize the outcome.
+
+```{r}
+plot((rules_by_conf)[1:15,], method = "graph")
+```
+
+
+### Rules by Support
+
+Next let's take a look at the 10 rules with highest support.
+
+```{r}
+rules_by_sup = sort(rules, by="support", decreasing=TRUE)
+inspect(rules_by_sup[1:10,]) 
+```
+
+Let's again visualize the outcome.
+
+```{r}
+plot(sort(rules_by_sup, by="support", decreasing=TRUE)[1:10,], method = "graph")
+```
+
+Here we have the following itemsets that could be interesting to the bakery due to their high support and again appering in several rules with changing antecedents and consequent.
+
+- Apricot Danish, Opera cake, Cherry Tart
+- Almond Twist, Apple Pie, Coffee Eclaie (and Hot Coffee)
+- Casino Cake, Chocolate Coffee, Chocolate Cake
+- Apricot Croissant, Hot Coffee, Blueberry Tart
+
+Notice also that the Almond Twist, Apple Pie and Coffee Eclaie itemset also appeared in the graph above.
+
+## Conclusion
+
+Given what we have seen in our analysis so far, we can say that in order to generate more sales it could be a good idea to focus on the itemsets we identified by the association rule mining technique, offering these items in bundles or as special offers perhaps.
+
+
+# Part 2: Anomaly detection
+
+## Introduction
+
+In this part the objective is to detect anomalies, i.e. patterns that do not conform to “normal” behavior using the Wisconsin Breast Cancer dataset.
+
+There are basically three different appraches to outlier detection: statistical methods, distance/density methods or clustering methods. I decided to compare following methods:
+
+- Mahalanobi distance (distance-based)
+- LOF Algorithm (density-based)
+- DBSCAN (clusetering-based)
+- Expectation Maximisation (clistering-based)
+
+
+## Dataset Description and Exploration
+
+The dataset was downloaded from UCI machine learning repositories. According to the dataset description, the dataset includes 699 examples of cancer biopsies with 11 features. One feature is an identification number, another is the cancer diagnosis, which is coded as 4 to indicate malignant or 2 to indicate benign. The other 9 are following numeric-valued laboratory measurements:
+
+- Clump Thickness
+- Uniformity of Cell Size
+- Uniformity of Cell Shape
+- Marginal Adhesion
+- Single Epithelial Cell Size
+- Bare Nuclei
+- Bland Chromatin
+- Normal Nucleoli
+- Mitoses
+
+The description also states that there are 16 missing attribute values denoted as "?".
+
+We load the data naming the columns appropriately, encode the class labels as Binary (1 - Malignant,0 - Benign), putting the values "?" as NAs, and removing the ID column.
+
+```{r}
+data2 = read.table("breast-cancer-wisconsin.data", sep = ",", na.strings='?', stringsAsFactors=F, header=F,
+                  col.names = c("id", "clump_thickness", "uniform_cell_size", "uniform_cell_shape", 
+                 "marginal_adhesion", "single_epithelial_cell_size", "bare_nuclei", 
+                 "bland_chromatin", "normal_nucleoli", "mitoses", "class"))
+data2$class <- as.factor(ifelse(data2$class == 4, 1, 0))
+data2$id <- NULL
+
+summary(data2)
+```
+
+We have only numerical features in the dataset. We can see that the missing values were all in the column `bare_nuclei`, therefore we can eliminate the missing values without losing to much observations.
+
+```{r}
+data2 = drop_na(data2)
+```
+
+There is no further data preparation necessary as all our variable are already numeric and we don’t have any NAs.
+
+To start with an initial general exploration of the whole dataset, let's first check some plots of the features.
+
+```{r}
+library(ggplot2)
+ggplot(stack(data2[,1:9]), aes(x = ind, y = values)) + geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1, vjust=1)) +
+  labs(title = "Boxplots of columns") + labs(x = "", y = "Values") + 
+  scale_y_continuous(breaks = seq(1, 10, by = 1))
+```
+
+We can notice that several columns have outliers, with the column Mitoses being the most critical.
+
+```{r}
+pairs(~., data = data2[,1:9], 
+      main="Scatterplot Matrix")
+```
+
+From this plot we cannot deduce any outliers. We will see if we can get a better visualization using principal components analysis to create a simple two-dimensional mapping of the data.
+
+```{r}
+# turning class variable into numeric
+data2$class = as.numeric(as.character(data2$class))
+# scaling data
+scaled = as.data.frame(scale(data2))
+# Create Principal Componants
+data.pca = prcomp(scaled)
+summary(data.pca)
+```
+
+We have obtained 9 principal components. Each one explains a percentage of the total variation in the dataset. We see that PC1 explains 67% of the total variance. PC2 explains around 8% of the variance. So, by knowing the position of a sample in relation to PC1 and PC2, we can get a view on where it stands in relation to other samples, as PC1 and PC2 can explain around 75% of the variance.
+
+```{r}
+data.plot <- data.table(data.pca$x[, 1:2])
+data.plot[, entry := rownames(data2)]
+data.plot[, class := data2$class]
+
+ggplot(data.plot, aes(x = PC1, y = PC2)) +
+        geom_point(aes(colour = factor(class)), size = 5, alpha = 0.3) +
+        geom_text(aes(label = entry), check_overlap = TRUE) +
+        ggtitle("Data Distribution and Diagnosis") +
+        theme_minimal()
+```
+
+Lets also get a three dimaensional view of the data adding the 3rd PC.
+
+```{r}
+library(plotly)
+data.plot3 <- data.table(data.pca$x[, 1:3])
+data.plot3[, entry := rownames(data2)]
+data.plot3[, class := data2$class]
+
+data.plot3$class = as.factor(data.plot3$class)
+
+plot_ly(data.plot3, x = data.plot3$PC1, y = data.plot3$PC2, z = data.plot3$PC3, color = data.plot3$class, colors = c('#BF382A', '#0C4B8E'), alpha = 0.8)   %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'PC1'),
+                     yaxis = list(title = 'PC2'),
+                     zaxis = list(title = 'PC3')))
+
+
+```
+
+
+
+In general the two classes seem to be fairly good seperated. However there is a small area where both classes sre mixed, which is propably an area where we can find some outier. The cases 690, 164 and 9 could also be anomalies within the group of non-cancer patients
+
+## Mahalanobis Distance
+
+The Mahalanobis distance is a measure of the distance between a point P and a distribution D. It is a multi-dimensional generalization of the idea of measuring how many standard deviations away P is from the mean of D. Mahalanobis distance can be used to determine multivariate outliers, where a point that has a greater Mahalanobis distance from the rest of the sample population of points is considered an outlier.
+
+To get the minimal distance to find outliers we use multivalued outlier detection.
+
+
+```{r}
+library(MVN)
+mah <- MVN::mvn(data = scaled, mvnTest = "hz",
+               univariateTest = "AD", univariatePlot = "box", 
+               multivariatePlot = "qq", multivariateOutlierMethod = "quan",
+               showOutliers = TRUE)
+```
+
+According to this method almost half of the observations are classified outliers (n = 325). Let's visualize the outliers.
+
+```{r}
+outliers.mah = data.table(obs = rownames(mah$multivariateOutliers),
+                          MahalanobisOutlier = mah$multivariateOutliers$Outlier)
+
+ggplot() +
+  geom_point(data = data.plot, aes(x = PC1, y = PC2), size = 3, color = "cyan3", alpha = 0.5) +
+  geom_point(data = data.plot[as.numeric(outliers.mah$obs)], aes(x = PC1, y = PC2), size = 3, color = "coral2", alpha = 0.3) + 
+  theme_minimal() 
+```
+
+This result obviusly does not make much sense as the outliers are scattered all over the place. We will see if we get better results with the next method.
+
+## LOF Algorithm
+
+LOF (Local Outlier Factor) is an algorithm for identifying density-based local outliers. With LOF, the local density of a point is compared with that of its neighbors. If the former is significantly lower than the latter (with an LOF value greater than one), the point is in a sparser region than its neighbors, which suggests it be an outlier.
+
+```{r}
+library(DMwR)
+
+outlier.scores = lofactor(scaled, k=10)
+
+# Pick top 20% as outliers
+n = as.integer(310*0.2)
+outliers.lof = order(outlier.scores, decreasing=T)[1:n]
+print(outliers.lof)
+```
+
+Let's visualize the outliers.
+
+```{r}
+ggplot() +
+  geom_point(data = data.plot, aes(x = PC1, y = PC2), size = 3, color = "cyan3", alpha = 0.5) +
+  geom_point(data = data.plot[as.numeric(outliers.lof)], aes(x = PC1, y = PC2), size = 3, color = "coral2", alpha = 0.3) + theme_minimal() 
+```
+
+This algorithm detects outliers much more concentated in the area of benigne cases. 
+
+## DBSCAN Algorithm
+
+DBSCAN is a density-based clustering algorithm. It works by defining “core points” given the user defined parameters for the radius to search around a point (eps), and the minimum number of neighbouring points necessary to say that an observation is a “core point” (minPts). Core points define clusters and points that lie outside the clusters a defined outliers.
+
+Let’s run the DBSCAN for our dataset.
+
+```{r}
+library(dbscan)
+
+dbsc = dbscan(scaled, eps = 2, minPts = 4)
+dbsc
+```
+
+The algorithm obtained two clusters and identified 55 outliers (cluster 0). 
+
+Let’s visualize the result.
+
+```{r}
+data.plot[, Dclusters := dbsc$cluster]
+
+ggplot(data.plot, aes(x = PC1, y = PC2)) +
+  geom_point(aes(colour = factor(Dclusters)), size = 3, alpha = 0.5) +
+  theme_minimal()
+```
+
+The outliers detected by this method are very different with regard to the ones detected by the LOF algorithm. We now see much more outliers scattered around the space of maligne cases. 
+
+## Expectation Maximization
+
+Expectation Maximisation is an unsupervised clustering algorithm that tries to find “similar subspaces” based on their orientation and variance.
+
+```{r}
+emax = Mclust(scaled, G = 3)
+
+data.plot[, EMclusters := emax$classification]
+data.plot
+```
+
+Again we will visualize the result.
+
+```{r}
+ggplot(data.plot, aes(x = PC1, y = PC2)) +
+  geom_point(aes(colour = factor(EMclusters)), size = 3, alpha = 0.3) +
+  theme_minimal()
+
+```
+
+The EM algorith again detects very different outliers to the previous methods. Here the outliers are concentrated in between the space of maligne and benigne cases. 
+
+## Conclusion
+
+Given the very different outcomes with all four methods tested on this dataset I think the best outcome was achieved with the EM method, as it detected outliers where we would expect to find them. 
