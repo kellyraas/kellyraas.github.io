@@ -4,7 +4,7 @@
 
 This is a repository of projects and assignments I worked on during my Data Science Master's Degree in 2019. Click on the headlines to see the full report and code.
 
-## [Classification of Bank Customers](https://github.com/kellyraas/kellyraas.github.io/blob/master/Projects/Classification_Bank/Bank_Customers_Classificacion.html)
+## [Classification of Bank Customers](https://kellyraas.github.io/Projects/Classification_Bank/Bank_Customers_Classificacion.html)
 *June 2019* </br>
 - Data: 42k+ Observations on customers affected by a direct marketing campaign
 - Explorative Data Analysis
