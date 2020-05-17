@@ -68,6 +68,6 @@ This is a repository of projects and assignments I worked on during my Data Scie
 - Parameter tuning with grid search </br>
 - **Keywords**(R, H2O, Classification, Random Forest, Gradient Boosting, Machine Learning)
 
-## [Monty Hall Paradox Simulation](kellyraas.github.io/Projects/Monty_Hall_Simulation/Monty_Hall_Simulation.html)
+## [Monty Hall Paradox Simulation](https://kellyraas.github.io/Projects/Monty_Hall_Simulation/Monty_Hall_Simulation.html)
 *January 2019* </br>
 After watching the movie "21" I found myself in a discussion about the Monty Hall Paradox so I decided to run a quick simulation in R code.
