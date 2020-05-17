@@ -4,16 +4,23 @@
 
 This is a repository of projects and assignments I worked on during my Data Science Master's Degree in 2019. Click on the headlines to see the full report and code.
 
-## [Data_Mining](https://kellyraas.github.io/Projects/Data_Mining/Data_Mining.html)
+## [World Values Survey (Spanish)](https://kellyraas.github.io/Projects/Data_Mining/Trabajo-Final.html)
+*July 2019* </br>
+- Final Assignment of the Subject on Optimisation techniques with imprecise information
+- The objective of the work was to draw some conclusions from the data and compare if the results change by applying fuzzy number methods
+- Data: World Values Survey (2014)(Source: [Our World in Data](https://ourworldindata.org/trust#trust-and-economic-outcomes.)
+- **Keywords**(R, Optimisation techniques, Fuzzy Numbers)
+
+## [Data Mining](https://kellyraas.github.io/Projects/Data_Mining/Data_Mining.html)
 *June 2019* </br>
 - Part 1: Association Rule Mining
   - Finding Frequent Itemsets
   - Apriori Algorithm
 - Part 2: Anomaly Detection
-  - Mahalanobi distance (distance-based)
-  - LOF Algorithm (density-based)
-  - DBSCAN (clusetering-based)
-  - Expectation Maximisation (clistering-based)
+  - Mahalanobi distance
+  - LOF Algorithm
+  - DBSCAN
+  - Expectation Maximisation
 - **Keywords**(R, Data Mining, Apriori, Anomaly Detection)
 
 

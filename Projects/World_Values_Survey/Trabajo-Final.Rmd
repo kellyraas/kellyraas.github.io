@@ -1,0 +1,387 @@
+---
+title: "Trabajo Final - Técnicas de Optimización con información imprecisa"
+author: "Kelly Raas"
+date: "5/7/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width = 6, fig.height = 4, fig.align = "center", echo = TRUE, warning = FALSE, message = FALSE, autodep = TRUE, cache = TRUE, options(scipen = 999), comment = "", fig.path = "files/")
+```
+
+## Introducción
+
+La Encuesta Mundial de Valores (EMV) o World Values Survey (WVS) es un proyecto global de investigación social que explora los valores y opiniones de la gente, cómo estos cambian con el tiempo, y su impacto social y político. 
+
+Entre otros valores la WVS mide el nivel de la "confianza en los demás" o "self-reported trust" que se construye como el número de personas que responden a la pregunta:
+
+*"En términos generales, ¿diría que se puede confiar en la mayoría de las personas o que debe ser muy cuidadoso al tratar con las personas?"*
+
+Las posibles respuestas incluyen "Se puede confiar en la mayoría de las personas", "No sé" y "No se puede ser demasiado cuidadoso". Las cifras representan el porcentaje que respondió "Se puede confiar en la mayoría de las personas" como parte de todas las respuestas. Los datos vienen para distintos años, sin embargo en este trabajo nos centraremos en analizar el resultado más reciente (2014) que contiene el nivel de confianza para 60 paises.
+
+Sin duda al tratarse de datos que provienen de una encuesta y dado que “confianza” es un término qualitativo que no tiene medida exacta, se pueden considerar datos imprecisos.
+
+EL objetivo del trabajo sera sacar algunas conclusiones interesantes de los datos y comparar si cambian los resultado aplicando numeros borrosos. Tratare de contestar a las siguientes preguntas:
+
+- ¿Cuál es el país con menos confianza y cuál con más confianza?
+- ¿Cuál es la mediana global de confianza?
+- ¿Cómo comparan las medias de confianza por regiónes?
+- ¿Cuál es la distribución global de confianza?
+
+Para contestar estas preguntas usaré las differerntes técnicas de estadística descriptiva con numeros borrosos.
+
+**Fuente de los datos:**
+Los datos utilizados en este trabajo provienen de https://ourworldindata.org/trust#trust-and-economic-outcomes. La fuente original es la World Values Survey (2014) (http://www.worldvaluessurvey.org/WVSDocumentationWVL.jsp)
+
+
+## Preparación de los datos
+
+Cargamos las librerias necesarias.
+
+```{r}
+library(tidyverse)
+library(FuzzyNumbers)
+```
+
+Cargamos los datos.
+
+```{r}
+data = read.csv("self-reported-trust-attitudes.csv")
+head(data)
+```
+
+Seleccionamos los datos para el año 2014.
+
+```{r}
+data = data %>%
+  filter(data$Year == 2014) %>%
+  select(Entity, Trust.in.others)
+head(data)
+```
+
+Ahora que tenemos los datos que nos interesan preparados, procedemos a la fuzzificación de los mismos.
+
+## Fuzzificación de los datos
+
+Las preguntas de la encuesta de actitud proporcionan la principal fuente de datos para estimar las actitudes de confianza interpersonales, por lo que podemos suponer una cierta incertidumbre en los datos.
+
+Sin embargo, la evidencia disponible para países con múltiples estimaciones de este tipo, sugiere que los resultados son bastante robustos. De hecho,  al comparar las estimaciones entre países de diferentes encuestas que tratan de trazar los niveles de confianza interpersonales estimados según lo medido por la World Values Survey, contra los niveles de confianza interpersonales medidos por la European Social Survey y la Afrobarometer Survey obtienen una correlación positiva y muy alta (r = .92). 
+
+```{r fig.width=3, echo=FALSE, include=TRUE}
+knitr::include_graphics("Correlation.png")
+```
+
+
+Teniendo esto en cuenta aplicaremos una incertidumbre de un 8% a los datos y como no hay indicaciones para suponer una asimetría usaremos números borrosos triangulares. Los datos ya están representados en porcentajes, por lo cual el soporte vendrá dado por [valor - 8 , valor + 8]. Además, como se trata de porcentajes los valores estarán cotados entre 0 y 100. 
+
+```{r}
+# Función de fuzzificación 
+fuzzify = function(x, l, r){
+  PiecewiseLinearFuzzyNumber(ifelse(x[1] - l < 0, 0, x[1] - l),
+                             x[1],
+                             x[1],
+                             ifelse(x[1] + r > 100, 100, x[1] + r))}
+
+# Fuzzificación de Trust.in.others 
+fuzzy_trust = apply(data[,"Trust.in.others",drop=F], 1, FUN = fuzzify, l = 8, r = 8)
+
+# Adjuntar labels
+names(fuzzy_trust) = data$Entity
+
+# Mostrar un ejemplo
+fuzzy_trust$Spain
+```
+
+## ¿Cuál es el país con menos confianza y cuál con más confianza?
+
+*Caso crisp:*
+```{r}
+# Mínimo
+data$Entity[which(data$Trust.in.others %in% min(data$Trust.in.others))]
+
+# Máximo
+data$Entity[which(data$Trust.in.others %in% max(data$Trust.in.others))]
+```
+
+Según los datos crisp el País con menos "confianza en los demás" son las Filipinas el país con más "confianza en las demás" son los Paises Bajos.
+
+*Caso borroso:*
+```{r}
+# Mínimo
+trust_min = fuzzy_trust[[1]]
+for (i in 2:length(fuzzy_trust)){
+    trust_min = minimum(fuzzy_trust[[i]],trust_min)
+  }
+trust_min
+
+# Máximo
+trust_max = fuzzy_trust[[1]]
+for (i in 2:length(fuzzy_trust)){
+    trust_max = maximum(fuzzy_trust[[i]],trust_max)
+  }
+trust_max
+```
+
+Vamos a visualizar el minimo crisp y borroso junto con el maximo crisp y borroso.
+
+```{r}
+plot(trust_min,xlim=c(0,100),col=1,main="Mínimo y máximo de los valores borrosos de Trust.in.others")
+plot(trust_max,add=TRUE,col=2)
+points(min(data$Trust.in.others), 1, col=1, pch=8)
+points(max(data$Trust.in.others), 1, col=2, pch=8)
+legend("topright",legend=c("mínimo","máximo"), lwd=c(2,2),col=1:2)
+```
+
+A continuación visualizaremos los 5 paises con más "confianza en los demás" y los 5 países con menos "confianza en los demás".
+
+```{r}
+fuzzy_trust_high = head(order(data$Trust.in.others),5)
+fuzzy_trust_low = tail(order(data$Trust.in.others),5)
+
+fuzzy_sample = c(fuzzy_trust_high, fuzzy_trust_low)
+
+plot(fuzzy_trust[[fuzzy_sample[1]]], xlim=c(0,100),col=1,main="Valores borrosos de Confianza")
+for (i in 2:10){
+  plot(fuzzy_trust[[fuzzy_sample[i]]],col=i,add=TRUE)
+}
+legend("topright",legend=data$Entity[fuzzy_sample], lwd=c(2,2,2,2,2),col=1:10,cex=0.75)
+```
+
+Podemos observar que los países con más "confianza en los demás" son países en general más desarrollados mientras que los paises con menos "confianza en los demás" son países en general menos desarrollados. Dado el pronunciado gap entre los dos grupos podemos afirmar que la diferencia en el nivel de confianza además es considerable. Tambien vemos que en el caso borroso el máximo y mínimo corresponde a los mismos paises que en el caso crisp.
+
+
+## ¿Cómo comparan las medias de confianza por regiónes?
+
+Para poder comparar la "confianza en los demás" por regiones, primero tenemos que asignar el continente a cada país, ya que no viene dado en los datos originales y luego calcular la media crisp y la media borrosa para cada región.
+
+```{r}
+library(countrycode)
+
+data$continent <- countrycode(sourcevar = data[, "Entity"],
+                              origin = "country.name",
+                              destination = "continent")
+
+head(data)
+```
+
+*Caso crisp:*
+```{r}
+crisp_means = data %>%
+  group_by(continent) %>%
+  summarise(mean_trust = round(mean(Trust.in.others), 2))
+crisp_means
+```
+
+Según el caso crisp el nivel de "confianza en los demás" es más alto en Oceania y más bajo en Americas. Vamos a mirar el caso de Americas en más detalle.
+
+```{r}
+filter(data, continent == "Americas")
+```
+
+Se puede observar claramente que aunque los EE.UU tiene un nivel de confianza mucho más alto que la media, la media se ve afectada sobre todo por los niveles de confianza muy bajos de los paises de Sudamérica. Sería interesante ver si un número borroso nos da un resultado que se ajuste mejor a la realidad.
+
+*Caso borroso:*
+
+Primero tenemos que agrupar los fuzzy numbers por continente.
+
+```{r}
+# obtener los índices
+i_af = which(data$continent == "Africa")
+i_am = which(data$continent == "Americas")
+i_as = which(data$continent == "Asia")
+i_eu = which(data$continent == "Europe")
+i_oc = which(data$continent == "Oceania")
+
+# agrupar fuzzy numbers por continente
+AF = c()
+for (i in 1:length(i_af)){
+  AF = c(AF, fuzzy_trust[[i_af[i]]])
+}
+names(AF) = data$country[i_af]
+
+AM = c()
+for (i in 1:length(i_am)){
+  AM = c(AM, fuzzy_trust[[i_am[i]]])
+}
+names(AM) = data$country[i_am]
+
+AS = c()
+for (i in 1:length(i_as)){
+  AS = c(AS, fuzzy_trust[[i_as[i]]])
+}
+names(AS) = data$country[i_as]
+
+EU = c()
+for (i in 1:length(i_eu)){
+  EU = c(EU, fuzzy_trust[[i_eu[i]]])
+}
+names(EU) = data$country[i_eu]
+
+OC = c()
+for (i in 1:length(i_oc)){
+  OC = c(OC, fuzzy_trust[[i_oc[i]]])
+}
+names(OC) = data$country[i_oc]
+```
+
+Ahora podemos obtenemos la media borrosa por continente.
+
+```{r}
+# fución para obtener la media borrosa
+fuzzy_mean = function(fnums){
+  fuzzy_mean = fnums[[1]] * 1/length(fnums)
+  for (i in 2:length(fnums)){
+    fuzzy_mean = fuzzy_mean + fnums[[i]] * 1/length(fnums)
+  }
+  fuzzy_mean
+}
+
+# aplicamos la función 
+fuzzy_means = list(mean_AF = fuzzy_mean(AF),
+                   mean_AM = fuzzy_mean(AM),
+                   mean_AS = fuzzy_mean(AS),
+                   mean_EU = fuzzy_mean(EU),
+                   mean_OC = fuzzy_mean(OC))
+
+# Mediana borrosa de Americas
+fuzzy_means$mean_AM
+```
+
+Evidentmenete la media borrosa para Americas con un soporte de [6.05 , 20.95] nos proporciona una mejor ajuste a lo que puede ser la realidad.
+
+Vamos a visualizar la media del nivel de "confianza en los demás" para cada continente.
+
+```{r}
+plot(fuzzy_means[[1]], xlim=c(0,100), col=1, main="Confianza media por continente")
+points(crisp_means$mean_trust[1], 1, col=1, pch = 8)
+for (i in 2:length(fuzzy_means)){
+  plot(fuzzy_means[[i]], col=i, add=TRUE)
+  points(crisp_means$mean_trust[i], 1, col=i, pch = 8)
+}
+legend("topright", legend=unique(data$continent), lwd=rep(2,5),col=1:5,cex=0.75)
+```
+
+
+## ¿Cuál es la mediana global de confianza?
+
+Para poder calcular la mediana borrosa tenemos que implementar una función que nos calcula el p-cuantil borroso de una colección de números borrosos.
+
+*Caso crisp:*
+```{r}
+median(data$Trust.in.others)
+```
+
+
+*Caso borroso:*
+```{r}
+# Función para calcular un quantil borroso
+cuantil_borroso=function (x,p,cuts){
+  izq=c()
+  der=c()
+  for (i in seq(0,1,1/cuts)){
+    df=data.frame(izq=c(),der=c())
+    for (j in 1:length(x)){
+      corte=alphacut(x[[j]],i)
+      df=rbind(df,data.frame(izq=corte[1],der=corte[2]))
+    }
+    dfizq=df[order(df$izq),]
+    dfder=df[order(df$der),]
+    izq=c(izq,dfizq[floor(p*length(x)),]$izq)
+    der=c(der,dfder[floor(p*length(x)),]$der)
+  }
+  cuantil_borroso=PiecewiseLinearFuzzyNumber(izq[1],izq[length(izq)],der[length(der)],der[1],knot.alpha=seq(0,1,1/cuts),knot.left=izq,knot.right=sort(der,decreasing=FALSE))
+}
+
+# Mediana borrosa de Trust.in.others 
+fuzzy_median_trust = cuantil_borroso(fuzzy_trust, 0.5, 10)
+
+# Visualización 
+plot(piecewiseLinearApproximation(fuzzy_median_trust),xlim=c(0,100), main="Mediana global de Confianza")
+abline(v = median(data$Trust.in.others), col = 2)
+legend("topright",legend=c("Fuzzy median","Crisp median"),lwd=c(2,2),
+col=c(1,2))
+```
+
+La mediana global del nivel de "confianza en los demás" es relativamente baja, es decir la mitad de los países no llega a los 30%. Ahora podemos mirar que país es el más cercano a la mediana borrosa y compararlo con el caso crisp.
+
+*Caso crisp:*
+```{r}
+crisp_distance = data.frame(entity=c(),distance=c())
+med = median(data$Trust.in.others)
+for (i in length(data$Entity)){
+  crisp_distance = rbind(crisp_distance, data.frame(entity = data[i,"Entity"],
+                                                    distance = abs(med - data[i,"Trust.in.others"])))
+}
+crisp_distance[order(crisp_distance$distance)[1],]
+```
+
+
+*Caso borroso:*
+```{r}
+fuzzy_distance = data.frame(entity=c(), distance=c())
+for (i in length(data$Entity)){
+  fuzzy_distance=rbind(fuzzy_distance, data.frame(entity=data[i,"Entity"],
+                                                  distance = distance(fuzzy_median_trust,fuzzy_trust[[i]])))
+}
+fuzzy_distance[order(fuzzy_distance$distance)[1],]
+
+```
+
+Zimbabwe es el país más cercano a la mediana tanto en el caso crisp como borroso. Sin embargo, notamos que la distancia en el caso borroso es algo mayor que en el caso crisp.
+
+
+# ¿Cuál es la distribución global de confianza?
+
+Por último queremos analizar cómo se distribuye el nivel de "confianza en lod demás"" a nivel global. Para ello comparamos la distribución de un nivel de confianza menor que 50% y mayor de un 50%, es decir comparamos las frequencias relativas crisp y borrosas para las clases [0,49] y [50,10].
+
+*Caso Crisp:*
+```{r}
+data %>%
+  select("Entity","Trust.in.others") %>%
+  mutate(class = ifelse(Trust.in.others >= 50, "Confianza alta", "Confianza baja")) %>%
+  group_by(class) %>%
+  summarise(count = n_distinct(Entity),
+            rel_freq = round(count/60, 2))
+```
+
+Según este resultado crisp podemos decir que tan solo un 8% de los paises tienen un nivel de confianza alta mientras que el 92% tiene un nivel de confianza baja. Comparemoslo con el caso borroso.
+
+*Caso borroso:*
+```{r}
+# función para calcular la frecuencia relativa borrosa
+interseccion=function(x,a,b){
+  if (x[2]<a | x[1]>b){interseccion=0} 
+  else {interseccion=1}
+}
+contenido=function(x,a,b){
+  if (x[1]>=a & x[2]<=b){contenido=1} 
+  else {contenido=0}
+}
+frec_rel_borrosa=function (x,a,b,cuts){
+  izq=c()
+  der=c()
+  for (i in seq(0,1,1/cuts)){
+    df=data.frame(izq=c(),der=c())
+    for (j in 1:length(x)){
+      corte=alphacut(x[[j]],i)
+      df=rbind(df,data.frame(izq=corte[1],der=corte[2]))
+    }
+    intersec=apply(df,1,FUN=interseccion,a=a,b=b)
+    sub=apply(df,1,FUN=contenido,a=a,b=b)
+    izq=c(izq,sum(sub)/length(x))
+    der=c(der,sum(intersec)/length(x))
+  }
+  frec_rel_borrosa=PiecewiseLinearFuzzyNumber(izq[1],izq[length(izq)],der[length(der)],der[1],knot.alpha=seq(0,1,1/cuts),knot.left=izq,knot.right=sort(der,decreasing=FALSE))
+}
+
+par(mfrow = c(1,2))
+plot(frec_rel_borrosa(fuzzy_trust,0,49,10), main="Confianza baja")
+plot(frec_rel_borrosa(fuzzy_trust,50,100,10), main="Confianza alta")
+
+```
+
+Mientras el caso crisp solo un 8% de los paises tenían una confianza alta, en el caso borroso podemos decir que dependiendo del delta-corte entre el 5% y 12% de los paises tienen una confianza alta. Igual con el caso de confianza baja, que según el caso borroso son el 88% a 95% de los paises.
+
+
