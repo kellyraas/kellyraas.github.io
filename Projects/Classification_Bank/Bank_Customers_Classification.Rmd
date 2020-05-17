@@ -1,0 +1,534 @@
+---
+title: "Practica Final SVM Classification"
+subtitle: "Aprendizaje Estadístico II"
+author: "Kelly Raas"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    code_folding: show
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 6, fig.align = "center", echo = TRUE, warning = FALSE, message = FALSE, autodep = TRUE, cache = TRUE, options(scipen = 999), comment = "", fig.path = "files/")
+```
+
+```{r, include=FALSE}
+library(tidyverse)    # Data wrangling and visualization
+library(gridExtra)    # Arrange plots
+library(gmodels)      # Cross tables
+library(neuralnet)    # Neural net models
+library(caret)        # Performance metrics
+library(reshape2)
+library(corrplot)
+library(DMwR)
+library(e1071)        # SVM
+library(pROC)         # ROC curves
+library(randomForest) # Random Forest models
+library(rpart)        # Decision Tree models
+library(class)        # KNN
+library(gbm)          # Boosting
+library(unbalanced)
+
+as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
+```
+
+
+# Introduction
+
+This practice attempts to llustrate a classification approach using SVM and NN and compare the outcomes to other classification methods. The goal is predicting whether bank clients will subscribe (yes/no) a term deposit (target variable). It is a binary (2-class) classification problem.
+
+# Data
+
+```{r}
+# Loading data
+data = read.csv("bank-full.csv", sep = ";")
+head(data)
+```
+
+The dataset consistes of 45.211 observations on customer data on direct marketing campaigns (phone calls) of a Portuguese banking institution, with following variables:
+
+Bank Client data: 
+
+- age
+- job
+- marital
+- education
+- default status
+- housing
+- loan
+
+Related with the last contact of the current campaign: 
+
+- last contact type
+- last contact month of year
+- last contact day of the week
+- last contact duration
+
+Others attributes: 
+
+- number of contacts performed in current campaign
+- number of days that passed by after the client was last contacted
+- number of contacts performed before this campaign, outcome of previous campaign
+- whether a client has subscribed a term deposit (output variable)
+
+## Data Exploration
+
+Let us first see the summary and general statistics of our data set.
+
+```{r}
+# General summary of all attributes
+summary(data)
+# Statistical summary of all attributes
+str(data)
+```
+```{r}
+# Summarize the levels of the class attribute
+data_x <- data[,1:(ncol(data)-1)]
+data_y <- data[,ncol(data)]
+cbind(freq=table(data_y), percentage=prop.table(table(data_y))*100)
+```
+```{r}
+# Count missing values
+sapply(data, function(x) sum(is.na(x)))
+```
+
+The data looks alright so far and we do not have to make any changes to the variable types. However, there are a few things we can already observe:
+
+- There is no missing data (NA's) which is good.
+- There are some "unknown" data for the variables `education`, `contact` and `poutcome`.
+- The outcome variable `y` is highly screwed and we will have to deal with this unbalance.
+- There seems to be an outlier in the `previous` variable as 275 seems a very high number. 
+
+## Data Visualization
+
+Next, we will visualize the relationship between some variable versus our target variable.
+
+```{r}
+ggplot(data = melt(data), mapping = aes(x = y, y = value)) + 
+    geom_boxplot() + facet_wrap(~variable, scales = 'free_y', ncol = 4) 
+```
+
+From this visualization we can deduce that except from `duration` and perhaps `pdays` the other variables do not seem to have significant influence on the target variable. All variables present a lot of outliers. However these are all values that are explainable, exept from the outlier in the `previous` variable which is probably an erroneous datapoint.
+
+Let's also check the relationship of the categorical variables.
+
+```{r}
+# Prepae data
+tab1 <- as.data.frame(prop.table(table(data$marital, data$y), 2))
+colnames(tab1) <-  c("marital", "y", "perc")
+
+tab2 <- as.data.frame(prop.table(table(data$education, data$y), 2))
+colnames(tab2) <-  c("education", "y", "perc")
+
+tab3 <- as.data.frame(prop.table(table(data$month, data$y), 2))
+colnames(tab3) <-  c("month", "y", "perc")
+
+tab4 <- as.data.frame(prop.table(table(data$contact, data$y), 2))
+colnames(tab4) <-  c("contact", "y", "perc")
+
+
+# Create plots
+marital = ggplot(data = tab1, aes(x = marital, y = perc, fill = y)) + 
+  geom_bar(stat = 'identity', position = 'dodge', alpha = 2/3) + 
+  xlab("Marital")+
+  ylab("Percent")
+
+education = ggplot(data = tab2, aes(x = education, y = perc, fill = y)) + 
+  geom_bar(stat = 'identity', position = 'dodge', alpha = 2/3) + 
+  xlab("Education") +
+  ylab("Percent")
+
+month = ggplot(data = tab3, aes(x = month, y = perc, fill = y)) + 
+  geom_bar(stat = 'identity', position = 'dodge', alpha = 2/3) + 
+  xlab("Month")+
+  ylab("Percent")
+
+contact = ggplot(data = tab4, aes(x = contact, y = perc, fill = y)) + 
+  geom_bar(stat = 'identity', position = 'dodge', alpha = 2/3) + 
+  xlab("Contact")+
+  ylab("Percent")
+
+
+grid.arrange(marital, education, month, contact, nrow = 2)
+```
+
+The main takeaways from this visualization are:
+
+- It doesn't seem like there is a big difference for marital status.
+- It seems that more educated people are more likely to say yes to a bank deposit.
+- May seems to be the time when they do the most calls for marketing deposit. 
+- March, April, October and November seem to be the months with more successful than unsuccessfull calls.
+
+## Data Cleaning and Preparation
+
+In order to prepare our dataset for modelling we will perform some modifications. First we will remove the outlier from the `previous` variable and also filtere out the observations where duration = 0, since this means that no call were made. Thus, it doesn't make sense to have these observations in our analysis. Furthermore we will convert the target variable into a binary variable.
+
+```{r}
+data = data %>%
+  filter(!previous > 150) %>%
+  filter(duration != 0) %>%
+  mutate(y = ifelse(y=="yes", 1, 0))
+```
+
+Next, we will create dummy variables for the categorical variables as this will be required for some algorithms.
+
+```{r}
+dummies = dummyVars(~ ., data = data)
+df = data.frame(predict(dummies, newdata = data))
+head(df)
+```
+
+We can drop one of the dummy variables for each categories as we only need n−1 dummy variables. 
+
+```{r}
+names(df)
+df = dplyr::select(df, -c("job.unknown","education.unknown","marital.divorced","education.unknown","default.no","housing.no","loan.no","contact.unknown","month.jan"))
+```
+
+Lastly, since the variables are of different magnitude, scaling is recommended. We will use the min-max method and scale the data in the interval [0,1].
+
+```{r}
+dfsc = as.data.frame(apply(df, 2, function(x){(x-min(x))/(max(x)-min(x))}))
+summary(dfsc)
+```
+
+## Correlation Matrix
+
+The correlation matrix will show us if there are any highly correlated variables. If independent variables are highly correlated, it can lead to problems of multicolinearity.
+
+```{r}
+corrplot(cor(dfsc), method = "color", tl.col="black", tl.cex = 0.6)
+```
+
+So from this matrix we see that in general there is not much correlation between the variables, appart from the few obvious between job type and education level. As well as between the outcome dummy variables. 
+
+## Create Training and Test Set
+
+In order to be able to test our models we will split our dataset into a training and a test set.
+
+```{r}
+set.seed(1991)
+# Split subset into training and testset 
+index <- sample(1:nrow(dfsc), round(0.70*nrow(dfsc)))
+train <- dfsc[index,]
+test <- dfsc[-index,]
+```
+
+As we have seen above we have a highly imbalanced dataset with regard to our target variable. In order to get reliable accuracy scores we schould balence our data. We will use the SMOTE technique that synthecially generates new training examples. It is important to note that we will only enrich the training set with synthetic examples, not the test set.
+
+```{r}
+set.seed(1991)
+train_smote = ubSMOTE(X = train[,names(train) != "y"],
+                      Y = as.factor(train[,"y"]),
+                      perc.over = 300,
+                      k = 5,
+                      perc.under = 200,
+                      verbose = FALSE
+                      )
+train_smote = cbind(train_smote$X, y = as.numeric(levels(train_smote$Y))[train_smote$Y])
+table(train_smote$y) / length(train_smote$y)
+```
+
+As we can see we improved the balance of the target variable fom 90/10 to 60/40. 
+
+Due to limited processing power we will further reduce our trainingset to 5000 observations.
+
+```{r}
+set.seed(1)
+# Create subset of the trainset
+smalltrain = sample_n(train_smote, size = 5000, replace = F)
+table(smalltrain$y)
+```
+
+## Set up the classificaton formula
+
+For convenience we set up the classification formula.
+
+```{r}
+n = names(train)
+f = as.formula(paste("y ~", paste(n[n != "y"], collapse = " + ")))
+f
+```
+
+## Evaluation metrics
+
+We will evaluate our models using following metrics:
+
+- Accuracy: How often did we make a correct prediction? (TP + TN) / Total
+- Precision: How many selected items are relevant? In this case: Out of all the times we predicted that a customer will subscribe, how often did they actually subscribe? TP / (TP + FP)
+- Recall: How many relevant items are selected? In this case: Out of all the subscribtions, how often did we predict them? TP / (TP + FN)
+
+
+```{r}
+metrics = function(x, y){
+  cm = confusionMatrix(as.factor(x), as.factor(y), positive = "1", mode = "prec_recall")
+  prec = cm$byClass["Precision"]
+  rec = cm$byClass["Recall"]
+  acc = cm$overall["Accuracy"]
+  df = data.frame(Accuracy = acc, Precision = prec, Recall = rec)
+  row.names(df) = ""
+  return(df)
+}
+
+```
+
+Finally, we are done with the data preparation for model training. 
+
+# Support Vector Machine (SVM) classification model
+
+## Parameter Tuning
+
+SVM is very sensitive to the choice of parameters. Even close parameters values might lead to very different classification results. In order to find the best fit, we want to test some different values.
+
+The two most important parameters for SVM are:
+
+- C (cost): is responsible for the size of the "soft margin" of SVM. This means that points inside this soft margin are not classified as any of the two categories.  The smaller the value of C, the greater the soft margin.
+
+- γ (gama): is responsible for the linearity degree of the hyperplane. The smaller γ is, the more the hyperplane is going to look like a straight line. However, if γ is too big, the hyperplane will be more curvy and might lead to overfitting.
+
+We will go with the default gamma and want to find the optimal cost parameter. Using the tune.svm() method we can test several different values, and return the ones which minimizes the classification error for the 10-fold cross validation.
+
+```{r}
+set.seed(1991)
+# convert dependent variable into factor
+smalltrain$y = as.factor(smalltrain$y)
+levels(smalltrain$y)[smalltrain$y]
+
+# tune svm
+svm_tuned = tune.svm(f, 
+                       data = smalltrain, 
+                       kernel = "linear" , 
+                       type = "C-classification", 
+                       cost = 10^(-3:2))
+
+summary(svm_tuned)
+```
+
+The best results is obtained with C = 100 leading to missclassification error of `r svm_tuned$best.performance `, which would mean an Accuracy of about 85%. The large value of C means that in this case a smaller-margin hyperplane with less missclassified points is prefered.
+
+We have to keep in mind that the above result is on the training data, we now want to see how good our optimized model performs on our test data.
+
+
+```{r}
+linear_svm = svm_tuned$best.model
+linear_svm.pred = predict(linear_svm, newdata = test)
+# confusion matrix
+table(linear_svm.pred, test$y)
+metrics(linear_svm.pred, test$y)
+```
+
+Very nice, on the test set the model results in an Accuracy of nearly 86%. However, the precision value is quite low.
+
+SVM is also very sensitive to the choice of the kernel so next we want to see if we get an improved model by using a radial kernel.
+
+```{r}
+set.seed(1991)
+svm_tuned_rbf = tune.svm(f, 
+                       data = smalltrain, 
+                       kernel = "radial" , 
+                       type = "C-classification", 
+                       cost = 10^(-3:2))
+
+summary(svm_tuned_rbf)
+```
+
+Indeed we seem to get a better result with the RBF kernel and C = 10 leading to missclassification error of `r svm_tuned_rbf$best.performance`, or Accuracy of about 88%.
+
+Again we need to test our model on the test data.
+
+```{r}
+rbf_svm = svm_tuned_rbf$best.model
+rbf_svm.pred = predict(rbf_svm, newdata = test)
+# confusion matrix
+table(rbf_svm.pred, test$y)
+metrics(rbf_svm.pred, test$y)
+```
+
+We can see that on the test data the model does not perform significantly better than the previous model. Hence, this model might have slightly overfitted on the training set. 
+
+# Artificial Neural Network comparative
+
+There is no fixed rule as to how many layers and neurons to use when modeling a neural net, aalthough there are several more or less accepted rules of thumb. Usually finding the best fit is a matter of trial and error. From the problem’s objective, we know that the structure of the ANN will have 52 inputs and 1 output that will be the prediction. 
+
+We will start with a simple structure of with 10 hidden nodes. 
+
+## One hidden layer
+
+```{r}
+# Convert dependent variable to numeric
+smalltrain$y = as.numeric(as.character(smalltrain$y))
+```
+
+```{r}
+set.seed(1991)
+nn1 = neuralnet(formula = f,
+                data = smalltrain, 
+                hidden = 10,
+                linear.output = F,
+                threshold = 0.01)
+```
+
+```{r}
+# Compute outputs for test data
+nn1.output = compute(nn1, test)$net.result
+nn1.pred = round(nn1.output[,1])
+
+# confusion matrix 
+table(nn1.pred, test$y)
+metrics(nn1.pred, test$y)
+```
+
+This model does not perform better than our SVM. Let's try a net structure with multiple hidden layers.
+
+## Multiple hidden layers
+ 
+```{r}
+set.seed(1991)
+nn2 = neuralnet(formula = f,
+                data = smalltrain, 
+                hidden = c(5,3,2),
+                linear.output = F,
+                threshold = 0.1)
+```
+
+```{r}
+# Compute outputs for test data
+nn2.output = compute(nn2, test)$net.result
+nn2.pred = round(nn2.output[,1])
+
+# confusion matrix 
+table(as.numeric(nn2.pred), test$y)
+metrics(nn2.pred, test$y)
+```
+
+It seems that the multiple layers did not improve the previous outcome.
+
+## ANN vs. SVM
+
+```{r}
+ev_svm1 = metrics(linear_svm.pred, test$y)
+ev_svm2 = metrics(rbf_svm.pred, test$y)
+ev_nn1 = metrics(nn1.pred, test$y)
+ev_nn2 = metrics(nn2.pred, test$y)
+
+evaluation = rbind(ev_svm1,ev_svm2,ev_nn1,ev_nn2)
+rownames(evaluation) = c("Linear SVM",
+                      "RBF SVM",
+                      "ANN 1",
+                      "ANN 2")
+evaluation
+```
+
+Our ANN models did not perform better than our SVM models. However, we should consider that there is no blueprint to fitting a neural network and small changes can lead to very different results. Maybe a different setting could still lead to better results.
+
+# More comparative Models
+
+To compare the results obtained with the SVM and ANN we will further evaluate following algorithms:
+
+- Logistic Regression
+- k-Nearest Neighbors
+- Decision Tree
+- Random Forest
+- Linear Discriminant Analysis
+
+## Logistic Regression
+
+```{r}
+set.seed(1991)
+# convert dependent variable into factor
+smalltrain$y = as.factor(smalltrain$y)
+
+# Logistic Regression (Classification)
+glm = glm(formula = f, data = smalltrain, family = binomial('logit'))
+summary(glm)
+
+glm.pred = predict(glm, test, type = "response")
+glm.pred = ifelse(glm.pred >= 0.5, 1, 0)
+# confusion matrix 
+table(glm.pred, test$y)
+metrics(glm.pred, test$y)
+```
+
+The logistic regression performs slightly better than our SVM. We can also see that none of the job variables seem to be statistically relevant for the model. On the other side the variables on housing, loan, month, and duration for example do show statistical significance.
+
+
+## K-Nearest Neighbours
+
+```{r}
+knn1 = class::knn(smalltrain, test, cl = smalltrain$y, k = 5)
+# confusion matrix 
+table(knn1, test$y)
+metrics(knn1, test$y)
+```
+
+This model is by far the best by now with an Accuracy of around 96%, as well as showing very high precision and recall values.
+
+##  Decision Tree Model
+
+```{r}
+library(rpart)
+tree = rpart(f, data=smalltrain, method="class", minbucket=20)
+tree.pred = predict(tree, test, type = "class")
+# confusion matrix 
+table(tree.pred, test$y)
+metrics(tree.pred, test$y)
+```
+
+This model does not perform any better than our previous models.
+
+## Random Forest Model
+
+```{r}
+library(randomForest)
+rf <- randomForest(f, data = smalltrain, ntree = 1000)
+rf.pred <- predict(rf, newdata = test, type = 'class')
+# confusion matrix 
+table(rf.pred, test$y)
+metrics(rf.pred, test$y)
+```
+
+This model is slightly better than the logistic regression.
+
+## Linear Discriminant Analysis
+
+```{r}
+library(MASS)
+lda1 = lda(f, smalltrain ,family=binomial)
+lda.pred = predict(lda1, test)$class
+# confusion matrix 
+table(lda.pred, test$y)
+metrics(lda.pred, test$y)
+```
+
+This model gets also quite similar results to the previous model.
+
+## Comparison
+
+Let's now get a final overview of all the models and compare it to our SVM model.
+
+```{r}
+ev_glm = metrics(glm.pred, test$y)
+ev_knn = metrics(knn1, test$y)
+ev_tree = metrics(tree.pred, test$y)
+ev_rf = metrics(rf.pred, test$y)
+ev_lda = metrics(lda.pred, test$y)
+
+evaluation = rbind(ev_svm1, ev_glm,ev_knn,ev_tree,ev_rf, ev_lda)
+rownames(evaluation) = c("Linear SVM",
+                      "Logistic Regression",
+                      "k-Nearest Neighbors",
+                      "Decision Tree",
+                      "Random Forest",
+                      "Linear Discriminant Analysis")
+evaluation
+```
+
+# Final Conclusion
+
+Over all models performed similar in terms of Accuracy, Precision and Recall. However, our kNN model clearly differs from the generall result, being the best model by far. Thus, for this particular classification problem, the KNN model would be the right choice.
+
+One of the major factor that could influence the obtained results is the size of our training set. Due to limited processing power only a subset of the training set was used. Therefore, we might see improvements for some models if trained on a larger dataset. Also, with regard to the SVM other kernels could be tried as well as tuning the gamma parameter in order to improve the results. 
+
