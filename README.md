@@ -4,11 +4,19 @@
 
 This is a repository of projects and assignments I worked on during my Data Science Master's Degree in 2019. Click on the headlines to see the full report and code.
 
+## [California Housing Prices](https://kellyraas.github.io/Projects/California_Housing_Prices/California_Housing_Prices.html)
+*June 2019* </br>
+- Data: Housing Data of California 1990 Census
+- Objective: Predicting the average housing prices
+- Regression with Neural Networks
+- **Keywords**(R, Regression, Neural Networks, Cross-Validation)
+
+
 ## [Classification of Bank Customers](https://kellyraas.github.io/Projects/Classification_Bank/Bank_Customers_Classificacion.html)
 *June 2019* </br>
 - Data: 42k+ Observations on customers affected by a direct marketing campaign
-- Explorative Data Analysis
-- Binary Classification Problem
+- Objective: predicting whether bank clients will subscribe a term deposit  
+- Binary Classification
 - Model comparison
 - **Keywords**(R, Classification, SVM, ANN)
 

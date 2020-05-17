@@ -1,0 +1,387 @@
+---
+title: "Regression Problem with Neural Networks"
+subtitle: "Aprendizaje Estadístico II"
+author: "Kelly Raas"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    code_folding: show
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 6, fig.align = "center", echo = TRUE, warning = FALSE, message = FALSE, autodep = TRUE, cache = TRUE, options(scipen = 999), comment = "", fig.path = "files/")
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(neuralnet)
+library(reshape2)
+library(corrplot)
+```
+
+# Introduction
+
+This practice tries to illustrate the regression using neural networks on the data of the census of California by groups of housing blocks with the objective of predicting the average prices of housing.
+The dependent variable is $ln(median\_house\_value)$, and the following model has to be adjusted:
+
+$$ln(median\_house\_value) = a_1 + a_2\cdot median\_income + a_3\cdot median\_income^2 + a_4\cdot median\_income^3 \\
++ a_5\cdot ln(median\_age) + a_6\cdot ln(total\_room / population) + a_7\cdot ln(total\_bedrooms / population) \\
++ a_8\cdot ln(population / households) + a_9\cdot ln(households)$$
+
+# Data California Census
+
+The data pertains to the houses found in a given California district and some summary stats about them based on the 1990 census data. The variables are the following:
+
+- median_house_value: Median house value for households within a block (measured in US Dollars)
+- median_income:      Median income for households within a block of houses (measured in tens of thousands of US Dollars)
+- housing_median_age: Median age of a house within a block; a lower number is a newer building
+- total_rooms:        Total number of rooms within a block
+- total_bedrooms:     Total number of bedrooms within a block
+- population:         Total number of people residing within a block
+- households:         Total number of households, a group of people residing within a home unit, for a block
+- latitude:           A measure of how far north a house is; a higher value is farther north
+- longitude:          A measure of how far west a house is; a higher value is farther west
+
+
+## Loading the data
+
+```{r}
+data = read.csv("cadata2.csv", sep = ",")
+```
+
+First we need to make sure that the data looks how we expect it and that no datapoint is missing.
+
+```{r}
+head(data)
+```
+
+```{r}
+summary(data)
+str(data)
+```
+
+There is no missing data which is good. Also the rest of the data looks ok and we do not need to change any variable types.
+
+
+## Explorative Analysis
+
+Next we will have a closer look at the variables.
+
+```{r}
+ggplot(data = melt(data), mapping = aes(x = value)) + 
+    geom_histogram(bins = 30) + facet_wrap(~variable, scales = 'free_x') 
+```
+
+In general the distribution of the data seems to make sense and there is nothing unusual. There are indeed some outliers. However, these are probably not due to bad data but can possible be explained by the difference in size between the different blocks of the California census, with the majority concentrating on similar values and a few that are larger than the rest. 
+
+### Correlation between variables
+
+```{r}
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor(data), method="color", col=col(200),  
+         type="upper", order="hclust", 
+         addCoef.col = "black", 
+         tl.col="black", tl.srt = 45, tl.cex = 0.8,
+         sig.level = 0.01, insig = "blank", 
+         diag=FALSE 
+         )
+```
+
+The target variable median_house_value has a high correlation with the variable median_income, which makes sense, so this is probably the variable with the most weight in the models.
+
+Among the variable total_rooms, total_bedrooms, population and households there is also a high correlation, which could cause a multicollinearity problem. However, in the model these variables are changed 
+
+## Data Cleaning and Preprocessing
+
+### Create model vriables
+
+Given the following model we want to fit, we need to create follwing new variables
+
+$$ median\_income^2, \\ median\_income^3, \\
+ln(median\_house\_value), \\ ln(median\_age), \\ ln(households), \\
+ln(total\_bedrooms / population), \\ ln(population / households), \\ ln(total\_room / population)$$
+
+and drop the variables that we will not need for the model.
+
+```{r}
+# create model variables
+data_model = data %>%
+  mutate(
+    ln_median_house_value = log(median_house_value),
+    ln_median_age = log(housing_median_age),
+    ln_households = log(households),
+    median_income_2 = median_income^2,
+    median_income_3 = median_income^3,
+    ln_trooms_popul = log(total_rooms/population),
+    ln_tbedrooms_popul= log(total_bedrooms/population),
+    ln_popul_households = log(population/households)
+  ) %>%
+  # drop unecessary variables
+  select(-c(median_house_value, 
+            housing_median_age, 
+            total_rooms, 
+            total_bedrooms, 
+            population, 
+            households, 
+            latitude, 
+            longitude))
+
+head(data_model)
+
+# define model function
+n = names(data_model)
+f = as.formula(paste("ln_median_house_value ~", paste(n[!n %in% "ln_median_house_value"], collapse = " + ")))
+```
+
+
+### Scale the independent variables
+
+It is good practice to normalize the data before training a neural network. We will only scale the independent variables, not our dependent variable 'median_house_value' since to be able to later compare the performance of different models it is better to have unnormalized predictions. We will use the min-max method and scale the data in the interval [0,1]. 
+
+```{r}
+data_x =  data_model[, names(data_model) != 'ln_median_house_value']
+
+maxs = apply(data_x, 2, max) 
+mins = apply(data_x, 2, min)
+scaled_data_x <- as.data.frame(scale(data_x, center = mins, scale = maxs - mins))
+
+scaled_data = cbind(scaled_data_x, ln_median_house_value = data_model$ln_median_house_value)
+head(scaled_data)
+```
+
+### Create training and test set
+
+We proceed by randomly splitting the data into a training and a test set.
+
+```{r}
+index <- sample(1:nrow(scaled_data), round(0.70*nrow(scaled_data)))
+train <- scaled_data[index,]
+test <- scaled_data[-index,]
+```
+
+Because the dataset is quite big and due to limited processing power we will work with a smaller sample of the training set.
+
+```{r}
+train.s = sample_n(train, size = 2000, replace = F)
+```
+
+### Evaluation strategy
+
+Given that we want to fit a model that makes predictions, one way of evaluating it is by calculating the MSE (mean square error), which is the average squared difference between the predicted values and the actual ones. Hence, MSE is a measure of how far our predictions are away from the acual data.
+
+
+# Multilinear Regression
+
+To begin with we fit a linear regression model as our base model, later we want to compare the performance of the nueral net model to the linear model.
+
+```{r}
+lm.fit = glm(f, data = train.s)
+pred.lm = predict(lm.fit, test)
+
+MSE.lm = sum((pred.lm - test$ln_median_house_value)^2)/nrow(test)
+MSE.lm
+```
+
+The MSE of the linear model is `r MSE.lm`. We should note that although we are not working with normalized predictions, the model works with the logaritmic value of the dependent variables.
+
+# Fitting the Neural Net Model
+
+There is no fixed rule as to how many layers and neurons to use when modeling a neural net, aalthough there are several more or less accepted rules of thumb. Usually finding the best fit is a matter of trial and error. From the problem’s objective, we know that the structure of the ANN will have 9 inputs and 1 output that will be the prediction. As to the hidden layers different possibilities will be considered. 
+
+Let’s start using 2 hidden layers with 2 neurons each. The structure of the ANN is: 13-2-2-1.
+
+
+```{r}
+nn1 = neuralnet(formula = f,
+                data = train.s, 
+                hidden = c(2,2),
+                linear.output = TRUE,
+                threshold = 0.1
+                )
+```
+
+In order for the model to converge I had to raise the defoult threshold value from 0.01 to 0.1, now we can visualize the net.
+
+```{r}
+plot(nn1, rep = "best")
+```
+
+
+The black lines show the connections between each layer and the weights on each connection while the blue lines show the bias term added in each step. The bias can be thought as the intercept of a linear model.
+The net is essentially a black box so we cannot say that much about the fitting, the weights and the model. Suffice to say that the training algorithm has converged and therefore the model is ready to be used.
+
+Thus, we can Check the model's performance on the test data and calculate the MSE. 
+
+```{r}
+pred.nn1 = compute(nn1, test)
+MSE.nn1 = sum((pred.nn1$net.result - test$ln_median_house_value)^2)/nrow(test)
+MSE.nn1
+```
+
+So far the result is slightly better than the linear model.
+
+## Structural optimization of the Neural Net
+
+Let's see what happens if we now use a deeper model, say one hidden layer of 10 nodes, in our neural network. 
+
+```{r}
+nn2 = neuralnet(formula = f,
+                data = train.s, 
+                hidden = 10,
+                linear.output = TRUE,
+                threshold = 0.1
+                )
+plot(nn2, rep = "best")
+```
+
+
+```{r}
+pred.nn2 = compute(nn2, test)
+MSE.nn2 = sum((pred.nn2$net.result - test$ln_median_house_value)^2)/nrow(test)
+MSE.nn2
+```
+
+Well, it seems that the deeper net performes slightly worse than the first net. 
+
+So let's see what happens when we insted widen the net using 4 hidden layers.
+
+```{r}
+nn3 = neuralnet(formula = f,
+                data = train.s, 
+                hidden = c(5,3,2,1),
+                linear.output = TRUE,
+                threshold = 0.1
+                )
+plot(nn3, rep = "best")
+```
+
+```{r}
+pred.nn3 = compute(nn3, test)
+MSE.nn3 = sum((pred.nn3$net.result - test$ln_median_house_value)^2)/nrow(test)
+MSE.nn3
+```
+
+The model converged a lot faster. However, it´s performance is a lot worse.
+
+## Parameter optimization
+
+So we will stick with our first model for now and see what happens if we alter the activation function from the default logistic to a tangent hyperbolicus.
+
+```{r}
+nn4 = neuralnet(formula = f,
+                data = train.s, 
+                hidden = c(2,2),
+                linear.output = TRUE,
+                threshold = 0.1,
+                act.fct = 'tanh'
+                )
+
+pred.nn4 = compute(nn4, test)
+MSE.nn4 = sum((pred.nn4$net.result - test$ln_median_house_value)^2)/nrow(test)
+MSE.nn4
+```
+
+Well, this did not work out so well as the prediction again is much worse.
+
+Let's now see what happens if we allow for five repetitions (or epochs).
+
+```{r}
+nn5 = neuralnet(formula = f,
+                data = train.s, 
+                hidden = c(2,2),
+                linear.output = TRUE,
+                threshold = 0.1,
+                rep = 5
+                )
+
+pred.nn5 = compute(nn4, test)
+MSE.nn5 = sum((pred.nn4$net.result - test$ln_median_house_value)^2)/nrow(test)
+MSE.nn5
+```
+
+Again, we did not achieve a better performance.
+
+
+## Evaluation
+
+To sum up we going to visualize in a table the MSE results obtained by the different models so far.
+
+```{r}
+data.frame(MODEL =c("LM", "NN1", "NN2", "NN3", "NN4", "NN5"),
+           MSE = c(MSE.lm, MSE.nn1, MSE.nn2, MSE.nn3, MSE.nn4, MSE.nn5)
+)
+
+
+```
+
+We can clearly see that our first model, the neural net with 2 hidden layers of two neurons each, got the best result. Also better than the linear model we did at the beginning.
+
+However, we should be careful because these results depend on the train-test split performed above. Next we are going to perform a cross validation in order to be more confident about the results.
+
+# Cross Validation
+
+First we will cross validate the linear model and get the average MSE.
+
+```{r}
+library(boot)
+set.seed(2019)
+lm.fit <- glm(f, data = scaled_data)
+cv.glm(scaled_data, lm.fit, K = 10)$delta[1]
+```
+
+Now the same for the Neural Net.
+
+```{r}
+set.seed(2019)
+cv.MSE = NULL
+k = 10
+folds = sample(1:k, nrow(scaled_data), replace = T)
+
+for(i in 1:k){
+    # generate folds
+    train.cv = scaled_data[folds != i,]
+    test.cv = scaled_data[folds == i,]
+    # generate subset from train.cv
+    train.cv.s = sample_n(train.cv, size = 2000, replace = F) 
+    # fit NN model
+    nn = neuralnet(f, data = train.cv.s, 
+                    hidden = c(2,2), 
+                    linear.output = T, 
+                    threshold = 0.1)  
+    # compute predictions with the model
+    pr.nn = compute(nn, test.cv)
+    cv.MSE[i] = sum((pr.nn$net.result - test.cv$ln_median_house_value)^2)/nrow(test.cv)
+}
+cv.MSE
+```
+
+We need to calculate the average MSE to compere it to the one of the linear model.
+
+```{r}
+mean(cv.MSE)
+```
+
+It seems that the average error is higher with the Neural Net model than with the Linear Model. We will draw a boxplot to get a clearer picture.
+
+```{r}
+boxplot(cv.MSE,xlab='MSE CV',col='cyan',
+        border='blue',names='CV error (MSE)',
+        main='CV error (MSE) for NN',horizontal=TRUE)
+```
+
+We can clearly see that there are two ouliers with respect to the MSE of the Neural Net model. Which means there were two splits in the dataset where the model performed quite bad. 
+
+# Conclusion
+
+In the end, after cross-validating our outcomes, the model that seems to have the best performance is the linear model. However, a few notes on this outcome. 
+
+We should consider that there is no blueprint to fitting a neural network and as we have seen, small changes can lead to quite different results. Maybe a different setting could still lead to better results than the liner model. 
+
+Also, we only used a small subset of the data in order to train the model due to limited processing power, training on a bigger sample again could improve the outcome. 
+
+On the other hand, one drawback of the neural networ is that it remains a black box and it is hard to gain any insight from the model, whereas with a linear model it is easy to get a insight and explain the outcome. Thus, in case that we would be interested in the relative importance of the different variables regarding our target variable than the linear model would be the prefered model to use.
+
+
