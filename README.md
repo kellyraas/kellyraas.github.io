@@ -8,7 +8,7 @@ This is a repository of projects and assignments I worked on during my Data Scie
 *June 2019* </br>
 - Project: Using linear programming to create a reading list that allows us to read the maximum possible number of books per year, given some constraints.
 - Compare the results of the crisp method with the fuzzy method  </br>
-- **Keywords**(R, Optimisation Problem, Linear Programming, Fuzzy Numbers)
+- **Keywords**(R, Optimisation Problem, Linear Programming, Fuzzy Method, Simplex)
 
 
 ## [World Values Survey (Spanish)](https://kellyraas.github.io/Projects/World_Values_Survey/Trabajo-Final.html)
