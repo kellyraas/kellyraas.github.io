@@ -1,0 +1,251 @@
+---
+title: "Problema de Programmación lineal"
+subtitle: "Reading List"
+author: "Kelly Raas"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  prettydoc::html_pretty:
+    theme: leonids
+    highlight: github
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 6, fig.align = "center", echo = TRUE, warning = FALSE, message = FALSE, autodep = TRUE, cache = TRUE, options(scipen = 999), comment = "", fig.path = "files/")
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(gdata)
+library(lpSolve)
+```
+
+# Formulación del Problema
+
+El objetivo de este pequeño projecto es crear una lista de lecturas que nos permita leer el máximo númer de libros al año posible, dado un tiempo limitado que podemos destinar a la lectura y dado un presupuesto limitado para gastar en los libros. Además la lista debe contener una cierta cantidad de libros de unos determinados géneros. Para ello haremos uso de la programación lineal y comparamos los resultados del caso crisp con el caso difuso.
+
+```{r pressure, echo=FALSE, out.width = '100%'}
+knitr::include_graphics("bookshelve.jpg")
+```
+
+## Preparación del problema
+
+Para este problema trabajamos con una lista de 50 libros recomendados por amazon para los temas "Data Science", "Personal Development" y "Historic fiction novels". Los datos vienen en una tabla con 4 variables: 
+
+- el titulo
+- el número de páginas
+- el precio
+- el género
+
+Primero cargamos los datos.
+```{r}
+booklist = read.xls("amazon-book-list.xls")
+head(booklist)
+```
+
+# Problema de Optimización (caso crisp)
+
+## Función objetiva: 
+
+Qeremos maximizar la cantidad de libros a leer en un año.
+
+$$ \begin{equation} \begin{aligned}
+\textrm{max} && \sum_{i=1}^{n} book_i &&& book_i \in \{0,1\}  \; \forall \; i \in 1,...,50 \\ \\
+\end{aligned} \end{equation} $$
+
+## Restricciones:
+
+Las restricciones vienen dados por:
+
+### 1. El tiempo que estimamos que podamos destinar a la lectura de los libros
+
+Suponiendo que la velocidad promedia de lectura es de aproximadamente 250-300 palabras por minuto, lo que equivale aproximadamente a una página por minuto, asumimos una velocidad de 60 páginas/hora. Además, estimamos que podamos destinar como máximo 3 horas a la semana a la lectura de los libros, lo que equivale 9.630 páginas.
+
+$$ \begin{equation} \begin{aligned}
+\sum_{i=1}^{n} pages_i*book_i \leq 9360 \\
+\end{aligned} \end{equation} $$
+
+
+### 2. Presupuesto para gastar en libros. 
+
+Queremos gastar como máximo 200€ en libros en este año.
+
+$$ \begin{equation} \begin{aligned}
+\sum_{i=1}^{n} price_i*book_i \leq 200 \\
+\end{aligned} \end{equation} $$
+
+### 3. Género de los libros
+
+Queremos que la lista contega como mínimo 3 libros de cada género, pero como máximo 5 de "Personal development"
+
+$$ \begin{equation} \begin{aligned}
+&&& \sum books_{DS} \geq 3 \\
+&&& \sum books_{HF} \geq 3 \\
+&&& \sum books_{PD} \geq 3 \\
+&&& \sum books_{PD} \leq 5 \\
+\end{aligned} \end{equation} $$
+
+## Método Simplex
+
+El problema de optimización queda de la siguiente forma:
+
+$$ \begin{equation} \begin{aligned}
+\left\{ \begin{array}{l}
+& \textrm{max} && \sum_{i=1}^{n} book_i  \\
+& \textrm{s.a.} && \sum_{i=1}^{n} price_i*book_i \leq 200 \\
+&&& \sum_{i=1}^{n} pages_i*book_i \leq 9360 \\
+&&& \sum books_{DS} \geq 3 \\
+&&& \sum books_{HF} \geq 3 \\
+&&& \sum books_{PD} \geq 3 \\
+&&& \sum books_{PD} \leq 5 \\
+&&& book_i \in \{0,1\}  \; \forall \; i \in 1,...,50 \\
+\end{array}\right.
+\end{aligned} \end{equation} $$
+
+Preparamos los datos para la fórmula:
+```{r}
+pages = as.vector(booklist$Pages)
+price = as.vector(booklist$Price)
+DS = ifelse(booklist$Genre == "DS",1,0)
+PD = ifelse(booklist$Genre == "PD",1,0)
+HF = ifelse(booklist$Genre == "HF",1,0)
+```
+
+Definimos la función objetiva `f.obj`, la matrix de restricciones `f.con`, la dirección de los restricciones `f.dir` y el vector de valores para el lado derecho de las restricciones `f.rhs`.
+```{r}
+f.obj = rep(1,50)
+f.con = matrix(c(pages, price, DS, HF, PD, PD), nrow = 6, byrow= TRUE)
+f.dir = c("<=", "<=", ">=", ">=", ">=", "<=")
+f.rhs = c(9360, 200, 3, 3, 3, 5)
+```
+
+Resolvemos el problema.
+```{r}
+solution = lp("max", f.obj, f.con, f.dir, f.rhs, binary.vec=1:50)
+solution
+```
+
+El resultado son **18 libros**. Veamos la lista.
+
+```{r, echo=FALSE}
+booklist$solution = solution$solution
+reading_list =  as.character(booklist$Title[which(booklist$solution == 1)])
+reading_list
+```
+
+Número total de páginas: `r sum(booklist$Pages[which(booklist$solution == 1)])` \
+Gasto: `r sum(booklist$Price[which(booklist$solution == 1)])`€ \
+
+Los géneros se distribuyen de la siguiente manera: \
+Data Sience: `r length(booklist$Genre[which(booklist$Genre == "DS" & booklist$solution == 1 )])` \
+Personal Development: `r length(booklist$Genre[which(booklist$Genre == "PD" & booklist$solution == 1 )])`\
+Novelas: `r length(booklist$Genre[which(booklist$Genre == "HF" & booklist$solution == 1 )])`
+
+
+# Problema de Optimización (caso difuso)
+
+En la vida real pocas cosas son realmente crisp, en nuestro problema hacemos una estimación de nuestra velocidad de lectura y del tiempo que podemos dedicar a la lectura, esto también se puede expresar de un manera difusa. Además, quizás tampoco queremos ser tan estrictos con nuestro presupuesto y permitir que se pueda traspasar en cierta cantidad.
+
+Entonces, formularemos nuestro versión difusa del problema suponiendo que:
+
+- Como máximo podemos leer unos 9.320 páginas al año, pero también puedan llegar a ser unas cuantas más.
+- El presupuesto máximo que queremos gastar son 200€, permitiéndo que pudiera ser también algo más.
+
+Además, establecemos que la lista de libros debe contener como mínimo 25 libros, permitiéndo que también sean algunos menos.
+
+Por tanto el problema fusificado puede formularse del modo siguiente:
+
+$$ \begin{equation} \begin{aligned}
+\left\{ \begin{array}{l}
+& \sum_{i=1}^{n} book_i \succ 25 \\
+& \sum_{i=1}^{n} price_i*book_i \prec 200 \\
+& \sum_{i=1}^{n} pages_i*book_i \prec 9.360 \\
+& \sum books_{DS} \geq 3 \\
+& \sum books_{HF} \geq 3 \\
+& \sum books_{PD} \geq 3 \\
+& \sum books_{PD} \leq 5 \\
+& book_i \in \{0,1\}  \; \forall \; i \in 1,...,50 \\
+\end{array}\right.
+\end{aligned} \end{equation} $$
+
+Los rangos de valores en los que cada aspecto puede ser transgredido quedan en:
+
+$$ \begin{aligned}
+& z = [20; 25] && M_1 = [200; 500]  && M_2 = [9.360;15.600]
+\end{aligned} $$
+
+Luego tenemos:
+
+$$ \begin{aligned}
+& d_0 = 5  && d_1 = 300  && d_2 = 6.240
+\end{aligned} $$
+
+
+Para poder resolver el problema mediante el métodpo Simplex tenemos que transformar el problema difuso en un problema lineal crisp, obteniendo el siguiente problema:
+
+$$ \begin{equation}
+\begin{aligned}
+\left\{ \begin{array}{l}
+& \textrm{max} && \alpha  \\
+& \textrm{s.a.} && \sum_{i=1}^{n} book_i + 5 \alpha \geq 25 \\
+&&& \sum_{i=1}^{n} price_i*book_i - 300 \alpha \leq 200 \\
+&&& \sum_{i=1}^{n} pages_i*book_i - 6240 \alpha \leq 9360 \\
+&&& \sum books_{DS} \geq 3 \\
+&&& \sum books_{HF} \geq 3 \\
+&&& \sum books_{PD} \geq 3 \\
+&&& \sum books_{PD} \leq 5 \\
+&&& book_i \in \{0,1\}  \; \forall \; i \in 1,...,50 \\
+\end{array}\right.
+\end{aligned}
+\end{equation} $$
+
+## Método Simplex
+
+```{r}
+books_fuzzy = c(rep(1,50), 5)
+price_fuzzy = as.vector(c(booklist$Price, -300))
+pages_fuzzy = as.vector(c(booklist$Pages, -6240))
+DS_fuzzy = c(ifelse(booklist$Genre == "DS",1,0), 0)
+HF_fuzzy = c(ifelse(booklist$Genre == "HF",1,0), 0)
+PD_fuzzy = c(ifelse(booklist$Genre == "PD",1,0), 0)
+alpha = c(rep(0,50), 1)
+
+f.obj2 = c(rep(0,50),1)
+f.con2 = matrix(c(books_fuzzy, pages_fuzzy, price_fuzzy, DS_fuzzy, HF_fuzzy, PD_fuzzy, PD_fuzzy, alpha), nrow = 8, byrow= TRUE)
+f.dir2 = c(">=", "<=", "<=", ">=", ">=", ">=", "<=", "<=")
+f.rhs2 = c(25, 9360, 200, 5, 3, 3, 5, 1)
+
+solution_fuzzy = lp("max", f.obj2, f.con2, f.dir2, f.rhs2, binary.vec=1:50)
+sum(solution_fuzzy$solution[1:50])
+solution_fuzzy$solution[51]
+```
+
+El resultado son **23 libros**. Con un valor de alpha = 1.
+
+Veamos la lista.
+
+```{r, echo=FALSE}
+booklist$solution_fuzzy = solution_fuzzy$solution[-51]
+as.character(booklist$Title[which(booklist$solution_fuzzy == 1)])
+```
+
+Número total de páginas: `r sum(booklist$Pages[which(booklist$solution_fuzzy == 1)])` \
+Gasto: `r sum(booklist$Price[which(booklist$solution_fuzzy == 1)])`€ \
+
+Los géneros se distribuyen de la siguiente manera: \
+Data Sience: `r length(booklist$Genre[which(booklist$Genre == "DS" & booklist$solution_fuzzy == 1 )])` \
+Personal Development: `r length(booklist$Genre[which(booklist$Genre == "PD" & booklist$solution_fuzzy == 1 )])` \
+Novelas: `r length(booklist$Genre[which(booklist$Genre == "HF" & booklist$solution_fuzzy == 1 )])`
+
+
+También podemos ver que libros se han añadido a la lista.
+```{r, echo=FALSE}
+booklist_crisp = as.character(booklist$Title[which(booklist$solution == 1)])
+booklist_fuzzy = as.character(booklist$Title[which(booklist$solution_fuzzy == 1)])
+setdiff(booklist_fuzzy,booklist_crisp)
+```
+
+
+
+
+

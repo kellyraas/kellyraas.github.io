@@ -4,12 +4,19 @@
 
 This is a repository of projects and assignments I worked on during my Data Science Master's Degree in 2019. Click on the headlines to see the full report and code.
 
-## [World Values Survey (Spanish)](https://kellyraas.github.io/Projects/Data_Mining/Trabajo-Final.html)
-*July 2019* </br>
-- Final Assignment of the Subject on Optimisation techniques with imprecise information
+## [Fuzzy Linear Programming (Spanish)](https://kellyraas.github.io/Projects/Linear_Programming/linear-opt-problem-reading-list.html)
+*June 2019* </br>
+- Project: Using linear programming to create a reading list that allows us to read the maximum possible number of books per year, given some constraints.
+- Compare the results of the crisp method with the fuzzy method  </br>
+- **Keywords**(R, Optimisation Problem, Linear Programming, Fuzzy Numbers)
+
+
+## [World Values Survey (Spanish)](https://kellyraas.github.io/Projects/World_Values_Survey/Trabajo-Final.html)
+*June 2019* </br>
+- Final Assignment of the Subject on Statistical Techniques with Imprecise Information
 - The objective of the work was to draw some conclusions from the data and compare if the results change by applying fuzzy number methods
-- Data: World Values Survey (2014)(Source: [Our World in Data](https://ourworldindata.org/trust#trust-and-economic-outcomes.)
-- **Keywords**(R, Optimisation techniques, Fuzzy Numbers)
+- Data: World Values Survey (2014) (Source: [Our World in Data](https://ourworldindata.org/trust#trust-and-economic-outcomes.))  </br>
+- **Keywords**(R, Fuzzy Numbers)
 
 ## [Data Mining](https://kellyraas.github.io/Projects/Data_Mining/Data_Mining.html)
 *June 2019* </br>
@@ -20,7 +27,7 @@ This is a repository of projects and assignments I worked on during my Data Scie
   - Mahalanobi distance
   - LOF Algorithm
   - DBSCAN
-  - Expectation Maximisation
+  - Expectation Maximisation  </br>
 - **Keywords**(R, Data Mining, Apriori, Anomaly Detection)
 
 
@@ -28,7 +35,7 @@ This is a repository of projects and assignments I worked on during my Data Scie
 *June 2019* </br>
 - Data: Housing Data of California 1990 Census (Source: [Kaggle](https://www.kaggle.com/camnugent/california-housing-prices))
 - Objective: Predicting the average housing prices
-- Regression with Neural Networks
+- Regression with Neural Networks  </br>
 - **Keywords**(R, Regression, Neural Networks, Cross-Validation)
 
 
@@ -37,7 +44,7 @@ This is a repository of projects and assignments I worked on during my Data Scie
 - Data: 42k+ Observations on customers affected by a direct marketing campaign
 - Objective: predicting whether bank clients will subscribe a term deposit  
 - Binary Classification
-- Model comparison
+- Model comparison  </br>
 - **Keywords**(R, Classification, SVM, ANN)
 
 
@@ -48,7 +55,7 @@ This is a repository of projects and assignments I worked on during my Data Scie
 - Explorative Data Analysis
 - Testing for Pareto Principle (80/20 Rule)
 - Predict customer spending using Regression Model and Random Forest
-- Building a Recommendation System
+- Building a Recommendation System  </br>
 - **Keywords**(R, Tidyverse, ggplot, Linear Regression, Random Forest, Recommenderlab)
 
 
