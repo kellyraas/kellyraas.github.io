@@ -1,8 +1,8 @@
 ### kellyraas.github.io
 
-# Data Science Portfolio
+# Data Science Projects
 
-This is a repository of projects I worked on in the field of Data Science. Click on the headlines to see the full analysis report and code.
+This is a repository of projects and assignments I worked on during my Data Science Master's Degree in 2018. Click on the headlines to see the full analysis report and code.
 
 ## [Black Friday: EDA, Spending Prediction and Recommendation System](https://kellyraas.github.io/Projects/Black_Friday/Black_Friday.html)
 *January 2019* </br>
@@ -26,4 +26,4 @@ This is a repository of projects I worked on in the field of Data Science. Click
 
 ## [Monty Hall Paradox Simulation](kellyraas.github.io/Projects/Monty_Hall_Simulation/Monty_Hall_Simulation.html)
 *January 2019* </br>
-Recently I found myself in a heated discussion about the Monty Hall Paradox. In order to test Vos Savant's claims on the probabilities, I decided to run a quick simulation in R code.
+After watching the movie "21" I found myself in a discussion about the Monty Hall Paradox so I decided to run a quick simulation in R code.
