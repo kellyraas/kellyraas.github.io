@@ -1,5 +1,12 @@
 ### kellyraas.github.io
 
+# Machine Learning Projects
+
+### Machine Learning Pipeline with Scikit-learn
+*May 2020* </br>
+- Research model to predict survival in the Titanic using the Sklearn pipeline </br>
+**Keywords**(Python, Model Deployment, Sklearn pipeline, Sklearn transformers)
+
 # First Data Science Projects
 
 This is a repository of projects and assignments I worked on during my Data Science Master's Degree in 2019. Click on the headlines to see the full report and code.
