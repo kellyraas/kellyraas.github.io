@@ -1,21 +1,21 @@
 ### kellyraas.github.io
 
-This is a collection of personal projects and assignments I worked on during my Data Science Master's Degree in 2019. Click on the headlines to see the full report and code.
+This is a collection of personal projects as well as assignments I worked on during my Data Science Master's Degree. Click on the headlines to see the full report and code.
 
 ### [Machine Learning Pipeline with Scikit-learn](https://github.com/kellyraas/kellyraas.github.io/tree/master/MachineLearning/ML_Model_Deployment)
 - Practical exercise as part of the online course on [Deploying Machine Learning Models](https://www.udemy.com/course/deployment-of-machine-learning-models/)
-- Research model to predict survival in the Titanic using the Sklearn pipeline
+- Objective: using the Sklearn pipeline to build a research model.
 - **Keywords**(Python, Model Deployment, Sklearn pipeline, Sklearn transformers)
 
 ### [Fuzzy Linear Programming (Spanish)](https://kellyraas.github.io/Projects/Linear_Programming/linear-opt-problem-reading-list.html)
-- Project: Using linear programming to create a reading list that allows us to read the maximum possible number of books per year, given some constraints.
+- Objective: Using linear programming to create a reading list that allows us to read the maximum possible number of books per year, given some constraints.
 - Compare the results of the crisp method with the fuzzy method\
 - **Keywords**(R, Optimisation Problem, Linear Programming, Fuzzy Method, Simplex)
 
 ### [Descriptive Statistics Techniques with Fuzzy Numbers (Spanish)](https://kellyraas.github.io/Projects/World_Values_Survey/Trabajo-Final.html)
 - Final Assignment of the Subject on Statistical Techniques with Imprecise Information
 - The objective of the work was to draw some conclusions from the data and compare if the results change by applying descriptive statistics techniques with fuzzy numbers.
-- Data: World Values Survey (2014) (Source: [Our World in Data](https://ourworldindata.org/trust#trust-and-economic-outcomes.))\
+- Data: World Values Survey (2014) (Source: [Our World in Data](https://ourworldindata.org/trust#trust-and-economic-outcomes.))
 - **Keywords**(R, Descriptive Statistics, Fuzzy Numbers)
 
 ### [Data Mining](https://kellyraas.github.io/Projects/Data_Mining/Data_Mining.html)
@@ -26,13 +26,13 @@ This is a collection of personal projects and assignments I worked on during my 
   - Mahalanobi distance
   - LOF Algorithm
   - DBSCAN
-  - Expectation Maximisation\
+  - Expectation Maximisation
 - **Keywords**(R, Data Mining, Apriori, Anomaly Detection)
 
 ### [California Housing Price Prediction](https://kellyraas.github.io/Projects/California_Housing_Prices/California_Housing_Prices.html)
 - Data: Housing Data of California 1990 Census (Source: [Kaggle](https://www.kaggle.com/camnugent/california-housing-prices))
 - Objective: Predicting the average housing prices
-- Regression with Neural Networks \
+- Regression with Neural Networks
 - **Keywords**(R, Regression, Neural Networks, Cross-Validation)
 
 ### [Classification of Bank Customers](https://kellyraas.github.io/Projects/Classification_Bank/Bank_Customers_Classificacion.html)
