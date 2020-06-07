@@ -9,7 +9,7 @@ This is a collection of personal projects as well as assignments I worked on dur
 
 ### [Fuzzy Linear Programming (Spanish)](https://kellyraas.github.io/Projects/Linear_Programming/linear-opt-problem-reading-list.html)
 - Objective: Using linear programming to create a reading list that allows us to read the maximum possible number of books per year, given some constraints.
-- Compare the results of the crisp method with the fuzzy method\
+- Compare the results of the crisp method with the fuzzy method
 - **Keywords**(R, Optimisation Problem, Linear Programming, Fuzzy Method, Simplex)
 
 ### [Descriptive Statistics Techniques with Fuzzy Numbers (Spanish)](https://kellyraas.github.io/Projects/World_Values_Survey/Trabajo-Final.html)

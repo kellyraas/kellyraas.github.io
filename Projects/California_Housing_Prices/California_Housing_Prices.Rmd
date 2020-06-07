@@ -52,7 +52,7 @@ The data pertains to the houses found in a given California district and some su
 data = read.csv("cadata2.csv", sep = ",")
 ```
 
-First we need to make sure that the data looks how we expect it and that no datapoint is missing.
+First we need to make sure that the data looks how we expect it and that no datapoints are missing.
 
 ```{r}
 head(data)
@@ -63,8 +63,7 @@ summary(data)
 str(data)
 ```
 
-There is no missing data which is good. Also the rest of the data looks ok and we do not need to change any variable types.
-
+There is no missing data which is good. Also the rest of the data looks ok.
 
 ## Explorative Analysis
 
@@ -92,19 +91,18 @@ corrplot(cor(data), method="color", col=col(200),
 
 The target variable median_house_value has a high correlation with the variable median_income, which makes sense, so this is probably the variable with the most weight in the models.
 
-Among the variable total_rooms, total_bedrooms, population and households there is also a high correlation, which could cause a multicollinearity problem. However, in the model these variables are changed 
+Among the variable total_rooms, total_bedrooms, population and households there is also a high correlation, which could cause a multicollinearity problem, so these variables will be transformed in the next step.
 
 ## Data Cleaning and Preprocessing
 
-### Create model vriables
+### Feature Engineering
 
-Given the following model we want to fit, we need to create follwing new variables
+Given the above mentioned model we create some new variables, and drop the variables that we will not need for the model.
 
 $$ median\_income^2, \\ median\_income^3, \\
 ln(median\_house\_value), \\ ln(median\_age), \\ ln(households), \\
 ln(total\_bedrooms / population), \\ ln(population / households), \\ ln(total\_room / population)$$
 
-and drop the variables that we will not need for the model.
 
 ```{r}
 # create model variables
@@ -139,7 +137,7 @@ f = as.formula(paste("ln_median_house_value ~", paste(n[!n %in% "ln_median_house
 
 ### Scale the independent variables
 
-It is good practice to normalize the data before training a neural network. We will only scale the independent variables, not our dependent variable 'median_house_value' since to be able to later compare the performance of different models it is better to have unnormalized predictions. We will use the min-max method and scale the data in the interval [0,1]. 
+It is good practice to normalize the data before training a neural network. We will use the min-max method and scale the independent variables to the interval [0,1]. 
 
 ```{r}
 data_x =  data_model[, names(data_model) != 'ln_median_house_value']
@@ -170,7 +168,7 @@ train.s = sample_n(train, size = 2000, replace = F)
 
 ### Evaluation strategy
 
-Given that we want to fit a model that makes predictions, one way of evaluating it is by calculating the MSE (mean square error), which is the average squared difference between the predicted values and the actual ones. Hence, MSE is a measure of how far our predictions are away from the acual data.
+Given that we want to fit a model that makes predictions, one way of evaluating it is by calculating the MSE (mean square error), which is the average squared difference between the predicted values and the actual ones. Hence, MSE is a measure of how far our predictions are away from the true data.
 
 
 # Multilinear Regression
@@ -189,7 +187,7 @@ The MSE of the linear model is `r MSE.lm`. We should note that although we are n
 
 # Fitting the Neural Net Model
 
-There is no fixed rule as to how many layers and neurons to use when modeling a neural net, aalthough there are several more or less accepted rules of thumb. Usually finding the best fit is a matter of trial and error. From the problem’s objective, we know that the structure of the ANN will have 9 inputs and 1 output that will be the prediction. As to the hidden layers different possibilities will be considered. 
+There is no fixed rule as to how many layers and neurons to use when modeling a neural net, although there are several more or less accepted rules of thumb. Usually finding the best fit is a matter of trial and error. From the problem’s objective, we know that the structure of the ANN will have 9 inputs (features) and 1 output (the predicted value). As to the hidden layers different combinatons will be tested 
 
 Let’s start using 2 hidden layers with 2 neurons each. The structure of the ANN is: 13-2-2-1.
 
@@ -203,7 +201,7 @@ nn1 = neuralnet(formula = f,
                 )
 ```
 
-In order for the model to converge I had to raise the defoult threshold value from 0.01 to 0.1, now we can visualize the net.
+In order for the model to converge the defoult threshold value had to be raised from 0.01 to 0.1, now we can visualize the net.
 
 ```{r}
 plot(nn1, rep = "best")
@@ -213,7 +211,7 @@ plot(nn1, rep = "best")
 The black lines show the connections between each layer and the weights on each connection while the blue lines show the bias term added in each step. The bias can be thought as the intercept of a linear model.
 The net is essentially a black box so we cannot say that much about the fitting, the weights and the model. Suffice to say that the training algorithm has converged and therefore the model is ready to be used.
 
-Thus, we can Check the model's performance on the test data and calculate the MSE. 
+Next, we check the model's performance on the test data and calculate the MSE. 
 
 ```{r}
 pred.nn1 = compute(nn1, test)
@@ -268,7 +266,7 @@ The model converged a lot faster. However, it´s performance is a lot worse.
 
 ## Parameter optimization
 
-So we will stick with our first model for now and see what happens if we alter the activation function from the default logistic to a tangent hyperbolicus.
+Given the above outcomes we will stick with our first model for now and see what happens if we alter the activation function from the default logistic to a tangent hyperbolic.
 
 ```{r}
 nn4 = neuralnet(formula = f,
@@ -286,7 +284,7 @@ MSE.nn4
 
 Well, this did not work out so well as the prediction again is much worse.
 
-Let's now see what happens if we allow for five repetitions (or epochs).
+Let's now see what happens if we increase the number of epochs.
 
 ```{r}
 nn5 = neuralnet(formula = f,
@@ -382,6 +380,6 @@ We should consider that there is no blueprint to fitting a neural network and as
 
 Also, we only used a small subset of the data in order to train the model due to limited processing power, training on a bigger sample again could improve the outcome. 
 
-On the other hand, one drawback of the neural networ is that it remains a black box and it is hard to gain any insight from the model, whereas with a linear model it is easy to get a insight and explain the outcome. Thus, in case that we would be interested in the relative importance of the different variables regarding our target variable than the linear model would be the prefered model to use.
+On the other hand, one drawback of the neural network is that it remains a black box and it is hard to gain any insight from the model, whereas with a linear model it is easy to get a insight and explain the outcome. Thus, in case that we would be interested in the relative importance of the different variables regarding our target variable than the linear model would be the prefered model to use.
 
 
